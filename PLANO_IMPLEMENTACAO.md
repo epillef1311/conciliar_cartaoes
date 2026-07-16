@@ -124,23 +124,23 @@ A informação `RECEBIDO NO BANCO QUICKPAY` aparece no arquivo, mas não como co
 
 O documento exige `dataInicio` e `dataFim`, mas os exemplos misturam datas de venda, pagamento e recebimento. No Cielo bruto, o filtro é `Data de pagamento: 11/07/2026 à 13/07/2026`, enquanto algumas vendas são de `10/07/2026`. No nome do arquivo consta "VENDA 11.07.2026, 12.07.2026 E 13.07.2026 RECEBIMENTO 13.07.2026", mas o conteúdo tem pagamentos em 11, 12 e 13.
 
-Decisão pendente: definir se o período informado pelo usuário filtra data da venda, data de pagamento, data de recebimento, `dataCadastro` da API ou `dataVencimento` da API.
+Decisão definitiva: o período informado pelo usuário representa a data da venda. Nos relatórios das operadoras, a data da venda será comparada com `dataCadastro` da API. `dataVencimento` será preservado como informação auxiliar, e data de pagamento/recebimento será usada apenas para organização e validação administrativa.
 
 ### 4.2 QuickPay: coluna obrigatória vs exemplo real
 
-O documento exige a coluna `RECEBIDO NO BANCO QUICKPAY` exatamente uma vez e preenchida em todas as linhas de transação. O exemplo trabalhado possui essa informação fora da tabela principal, como um bloco manual. A primeira versão precisa escolher entre rejeitar esse formato ou aceitá-lo como legado e convertê-lo para uma coluna transacional normalizada.
+O documento exige a coluna `RECEBIDO NO BANCO QUICKPAY` exatamente uma vez e preenchida em todas as linhas de transação. O exemplo trabalhado possui essa informação fora da tabela principal, como um bloco manual. Decisão definitiva: esse formato legado não será aceito como entrada da automação. A coluna obrigatória deve estar dentro da tabela transacional, e cada valor corresponde à transação da mesma linha.
 
 ### 4.3 QuickPay: ordem e nomes de colunas de saída
 
-O documento lista colunas mínimas como `Código`, `Operadora`, `Cartão`, `Pré-datado`, `Recebido`, `Valor`, `Valor líquido`, `Valor taxa`, etc. O exemplo real usa outra estrutura: data da venda, data de recebimento, parcelas, bandeira, tipo de pagamento, valor da venda, taxa e valor líquido. Ainda falta o mapeamento exato entre esses nomes.
+O documento lista colunas mínimas como `Código`, `Operadora`, `Cartão`, `Pré-datado`, `Recebido`, `Valor`, `Valor líquido`, `Valor taxa`, etc. Decisão definitiva: esses nomes genéricos não serão usados na primeira versão. A saída QuickPay seguirá a estrutura do exemplo trabalhado, acrescida de `RECEBIDO NO BANCO QUICKPAY`, `Sistema`, `Diferença Sistema` e `Status`.
 
 ### 4.4 Cielo: "separar crédito, débito e Pix"
 
-O documento manda separar crédito, débito e Pix. O modelo LEO não usa abas separadas; ele agrupa linhas na mesma planilha e inclui subtotais em pontos específicos. Também há crédito e débito em mais de um bloco antes do bloco Pix. A regra de ordenação precisa ser explicitada.
+O documento manda separar crédito, débito e Pix. O modelo LEO não usa abas separadas; ele agrupa linhas na mesma planilha e inclui subtotais em pontos específicos. Decisão definitiva: reproduzir a regra observada no LEO em uma única aba, ordenando por data de pagamento, tipo de lançamento, forma de pagamento, data da venda e hora da venda. Pix deve permanecer em bloco próprio.
 
 ### 4.5 Abas extras vs modelo LEO
 
-O documento sugere abas `Conciliação`, `Dados Originais` e `Alertas`. O modelo LEO analisado tem apenas `Planilha1`. A implementação precisa decidir se a saída deve manter visualmente uma aba principal como o LEO e adicionar abas novas, ou se deve reproduzir exatamente o arquivo LEO sem abas auxiliares.
+O documento sugere abas `Conciliação`, `Dados Originais` e `Alertas`. O modelo LEO analisado tem apenas `Planilha1`. Decisão definitiva: a primeira versão terá apenas a aba principal `Planilha1`, reproduzindo o LEO. A arquitetura deve permitir abas auxiliares no futuro, mas elas não serão geradas agora.
 
 ### 4.6 Formatos de entrada
 
@@ -158,7 +158,7 @@ Há espaços não separáveis (`NBSP`) em cabeçalhos da QuickPay e variações 
 
 ### 4.8 Sinal da taxa
 
-Na Cielo, a taxa aparece negativa. Na QuickPay, a taxa aparece positiva. O domínio interno deve definir uma convenção única, por exemplo `valor_taxa` sempre positivo para cálculo, preservando também o valor original para auditoria.
+Na Cielo, a taxa aparece negativa. Na QuickPay, a taxa aparece positiva. Decisão definitiva: no domínio interno, a taxa será armazenada como valor positivo, preservando também o valor original da operadora para auditoria. A saída Cielo mantém o sinal visual do LEO; a saída QuickPay mantém o formato positivo do relatório.
 
 ### 4.9 API sem identificadores fortes
 
@@ -166,15 +166,15 @@ O documento diz que a API não retorna NSU, TID, horário ou autorização. Os a
 
 ### 4.10 Status de divergência de valor
 
-Sem identificador transacional forte, "divergência de valor" pode ser difícil de afirmar linha a linha. Em muitos casos, o resultado mais correto será "não encontrado no sistema", "não encontrado na operadora" ou "divergência de quantidade" por grupo/valor.
+Sem identificador transacional forte, "divergência de valor" pode ser difícil de afirmar linha a linha. Decisão definitiva: o matching produzirá dois níveis, resultado por ocorrência quando houver correspondência não ambígua e resumo agregado por grupo quando houver valores repetidos ou ambiguidade.
 
 ### 4.11 Sobreposição e duplicidade em múltiplos arquivos
 
-O documento menciona múltiplos arquivos, mas não define o que é duplicidade de transação. Para Cielo, poderia usar código da venda, NSU/DOC, TID ou combinação de data/hora/valor/bandeira. Para QuickPay, o exemplo não possui código único.
+O documento menciona múltiplos arquivos. Decisão definitiva: para Cielo, detectar duplicidade por identificador da transação quando existir, depois NSU/TID/código de autorização, depois combinação de data da venda, hora, valor, bandeira e modalidade. Para QuickPay, usar data da venda, hora da venda, data de recebimento, valor da venda, bandeira, tipo de pagamento e número de parcelas. Duplicidade exata interrompe a união daquela operadora.
 
 ### 4.12 Respostas brutas da API e versionamento
 
-As respostas brutas devem ser salvas para auditoria, mas não devem ir para o Git se puderem conter dados sensíveis do caixa. A estrutura final precisa de `.gitignore` cobrindo `data/api_raw/`, `data/input/`, `output/` e `logs/`, mantendo apenas fixtures anonimizadas em `tests/fixtures/`.
+As respostas brutas devem ser salvas para auditoria e não devem ir para o Git. Decisão definitiva: não haverá criptografia local na primeira versão; os JSONs ficarão em `data/api_raw/`, sem Bearer Token, com acesso limitado ao ambiente local. A estrutura deve ignorar `data/api_raw/`, `data/input/`, `output/`, `logs/` e `arquivos_exemplo/`, mantendo apenas fixtures mínimas anonimizadas em `tests/fixtures/`.
 
 ### 4.13 Validação de centavos com Excel
 
@@ -182,7 +182,7 @@ O documento exige considerar qualquer centavo de diferença. A implementação n
 
 ### 4.14 Fallback de IDs da API
 
-O documento sugere buscar IDs dinamicamente e usar valores fixos como fallback. Falta definir quando o fallback é permitido: sempre, somente com alerta ou somente em modo explicitamente configurado.
+O documento sugere buscar IDs dinamicamente e usar valores fixos como fallback. Decisão definitiva: primeiro tentar `/autoCompletarOperadora`; se falhar ou não retornar modalidade esperada, usar fallback configurado e registrar alerta no log, sem confirmação interativa. Não usar fallback quando o nome retornado indicar modalidade diferente.
 
 ## 5. Estrutura final proposta do repositório
 
@@ -291,11 +291,16 @@ Notas sobre a estrutura:
 
 ### Etapa 0 - Validação deste plano
 
-- Confirmar decisões pendentes listadas neste documento.
-- Definir regras exatas de data, layout e QuickPay.
-- Não implementar integração real antes dessas confirmações.
+Status: concluída pelas decisões definitivas incorporadas neste documento.
+
+- Período definido como data da venda.
+- Cielo definida com aba única `Planilha1` no padrão LEO.
+- QuickPay definida com coluna transacional obrigatória `RECEBIDO NO BANCO QUICKPAY`.
+- Matching definido em dois níveis: ocorrência e resumo agregado.
 
 ### Etapa 1 - Base do projeto
+
+Status: implementada.
 
 - Criar `pyproject.toml`, `.gitignore`, `.env.example`, `README.md` e `AGENTS.md`.
 - Criar estrutura de pastas.
@@ -304,12 +309,16 @@ Notas sobre a estrutura:
 
 ### Etapa 2 - Modelos e utilitários financeiros
 
+Status: implementada.
+
 - Criar modelos internos para transação de operadora, registro do sistema, alerta e resultado de conciliação.
 - Implementar normalização de moeda com `Decimal`.
 - Implementar normalização de texto com remoção de acentos, `NBSP`, caixa e espaços extras.
 - Implementar utilitário de hash dos arquivos originais.
 
 ### Etapa 3 - Leitores em modo somente leitura
+
+Status: implementada.
 
 - Implementar detector de formato por assinatura/conteúdo.
 - Implementar leitor Cielo `.xlsx`.
@@ -318,6 +327,8 @@ Notas sobre a estrutura:
 - Garantir que os arquivos de entrada nunca sejam salvos ou alterados.
 
 ### Etapa 4 - Validações dos arquivos
+
+Status: implementada.
 
 - Validar cabeçalhos obrigatórios da Cielo.
 - Validar contagem, totais e linhas transacionais da Cielo.
@@ -369,22 +380,37 @@ Notas sobre a estrutura:
 - Ajustar layout Cielo ao padrão LEO.
 - Validar regras de data e matching com casos reais.
 
-## 7. Decisões que precisam ser validadas antes da implementação
+## 7. Decisões definitivas incorporadas
 
-1. O período informado deve representar data da venda, data de pagamento, data de recebimento, `dataCadastro` ou `dataVencimento`?
-2. No Cielo, a saída deve filtrar pelo período de pagamento ou pelo período de venda?
-3. No Cielo, a aba principal deve se chamar `Planilha1`, como no LEO, ou `Conciliação`, como no documento?
-4. A saída Cielo deve adicionar abas `Dados Originais` e `Alertas`, mesmo que o modelo LEO não tenha essas abas?
-5. Qual é a regra exata de ordenação dos blocos Cielo: reproduzir a ordem do LEO, ordenar por data/tipo, ou separar estritamente crédito, débito e Pix?
-6. Os subtotais da Cielo devem seguir exatamente os blocos do LEO ou devem ser recalculados por modalidade?
-7. A coluna `RECEBIDO NO BANCO QUICKPAY` deve obrigatoriamente estar na tabela transacional, ou o formato manual do exemplo, com valores em bloco separado, deve ser aceito?
-8. Se o formato manual do QuickPay for aceito, qual regra associa K8/K9 às transações da linha 3/4?
-9. Quais são os nomes finais das colunas QuickPay: os do documento ou os do exemplo trabalhado?
-10. O campo `Sistema` no exemplo QuickPay corresponde a `Valor no sistema`?
-11. A comparação com a API deve usar `dataCadastro` ou `dataVencimento` como data do caixa?
-12. O fallback de IDs da API pode ser usado automaticamente quando o autocomplete falhar, ou deve exigir confirmação/alerta?
-13. As respostas brutas da API podem conter dados sensíveis suficientes para exigir criptografia local, ou basta mantê-las fora do Git?
-14. Como identificar duplicidade em múltiplos arquivos QuickPay se não houver código único?
-15. A taxa deve ser armazenada internamente sempre positiva, mesmo quando a Cielo vem com taxa negativa?
-16. Em casos sem identificador único, o status deve ser por transação, por grupo agregado ou ambos?
-17. Os arquivos de exemplo atuais podem ser copiados para fixtures de teste, ou será necessário criar fixtures anonimizadas?
+1. O período informado representa data da venda.
+2. Na API, `dataCadastro` é a data principal de venda/caixa; `dataVencimento` é auxiliar.
+3. Na Cielo, a seleção usa data da venda dentro do período informado.
+4. Data de pagamento Cielo organiza blocos e valida administrativamente, mas não define o período.
+5. A saída Cielo da primeira versão terá apenas a aba `Planilha1`.
+6. A primeira versão não criará abas `Dados Originais` e `Alertas`.
+7. A ordenação Cielo segue data de pagamento, tipo de lançamento, forma de pagamento, data da venda e hora da venda.
+8. Pix permanece em bloco próprio, conforme o exemplo LEO.
+9. Subtotais Cielo são dinâmicos por data de pagamento e tipo/modalidade relevante.
+10. QuickPay exige `RECEBIDO NO BANCO QUICKPAY` dentro da tabela transacional.
+11. O formato legado QuickPay com valores fora da tabela principal será rejeitado.
+12. Cada valor recebido no banco corresponde à transação da mesma linha.
+13. A saída QuickPay seguirá os nomes do exemplo trabalhado, acrescidos das colunas de banco e sistema.
+14. `Sistema` é o valor encontrado na API para a ocorrência conciliada.
+15. `Diferença Sistema` é `Valor da Venda - Sistema`.
+16. Qualquer diferença de R$ 0,01 ou mais deve ser destacada.
+17. Matching terá resultado por ocorrência e resumo agregado por grupo.
+18. Pareamento por ocorrência só deve acontecer quando a correspondência não for ambígua.
+19. Valores repetidos devem usar multiconjunto.
+20. IDs da API vêm primeiro de `/autoCompletarOperadora`; fallback configurado é permitido com alerta.
+21. Respostas brutas da API ficam fora do Git em `data/api_raw/`, sem criptografia local na primeira versão.
+22. Duplicidade Cielo usa identificadores quando existirem e combinação de campos como fallback.
+23. Duplicidade QuickPay usa data/hora da venda, data de recebimento, valor, bandeira, tipo e parcelas.
+24. Taxa interna será positiva, preservando o valor original para auditoria.
+25. Fixtures de teste devem ser mínimas e anonimizadas; arquivos completos de `arquivos_exemplo/` ficam fora do Git.
+
+## 8. Pendências restantes
+
+- Implementar leitores, processadores, matching e cliente API nas próximas etapas.
+- Criar fixtures mínimas anonimizadas para testes unitários.
+- Homologar a saída Cielo contra o modelo LEO após a implementação do exportador.
+- Executar chamadas reais à API somente em etapa futura, com token temporário informado no ambiente.

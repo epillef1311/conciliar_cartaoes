@@ -1,0 +1,16 @@
+currency:
+  decimal_places: 2
+  monetary_tolerance: "0.00"
+
+processing:
+  period_field: "data_venda"
+  preserve_originals: true
+  independent_operators: true
+  reject_overlapping_files: true
+  raw_examples_are_git_ignored: true
+
+output:
+  include_original_data_sheet_v1: false
+  include_alerts_sheet_v1: false
+  logs_include_alerts: true
+

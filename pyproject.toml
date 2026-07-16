@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conciliacao-caixa"
+version = "0.1.0"
+description = "Automacao de conciliacao de caixa com Cielo, QuickPay e API Velo."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openpyxl>=3.1",
+    "pandas>=2.2",
+    "requests>=2.32",
+    "pyyaml>=6.0",
+    "pydantic>=2.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "types-openpyxl>=3.1",
+]
+
+[project.scripts]
+conciliacao = "conciliacao.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "local: exige arquivos reais locais e nao deve ser executado no CI.",
+    "integration: valida integracao somente leitura com arquivos reais.",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+strict = true
+warn_unused_configs = true
