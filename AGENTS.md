@@ -22,4 +22,4 @@ Este projeto automatiza conciliacao financeira. Preserve a rastreabilidade e evi
 
 ## Escopo atual
 
-A Etapa 4 implementa validacoes dos arquivos Cielo e QuickPay sobre os resultados tipados dos leitores. Nao implemente processadores, matching, exportadores, layout final ou chamadas reais de API sem pedido explicito.
+A Etapa 6 implementa apenas processamento e exportacao independente do relatorio QuickPay, sem API e sem matching. Nao implemente API Velo, matching, workflow completo ou Bearer Token sem pedido explicito.

@@ -133,7 +133,7 @@ def test_quickpay_empty_invalid_negative_and_formula_bank_values():
 
     assert "QUICKPAY_RECEBIDO_VAZIO" in _codigos(empty)
     assert "QUICKPAY_RECEBIDO_INVALIDO" in _codigos(invalid)
-    assert "QUICKPAY_RECEBIDO_INVALIDO" in _codigos(negative)
+    assert "QUICKPAY_RECEBIDO_NEGATIVO" in _codigos(negative)
     assert "QUICKPAY_RECEBIDO_INVALIDO" in _codigos(formula_error)
 
 
@@ -164,6 +164,7 @@ def test_quickpay_fee_rules_one_cent_and_zero_gross():
     assert "QUICKPAY_TAXA_NEGATIVA" in _codigos(negative_fee)
     assert "QUICKPAY_DIFERENCA_TAXA" in _codigos(one_cent)
     assert "QUICKPAY_VALOR_BRUTO_ZERO" in _codigos(zero)
+    assert zero.valido
     assert "QUICKPAY_TAXA_MAIOR_QUE_VALOR_VENDA" in _codigos(high_fee)
 
 

@@ -337,6 +337,8 @@ Status: implementada.
 
 ### Etapa 5 - Processamento Cielo sem API
 
+Status: implementada.
+
 - Reproduzir o layout principal do modelo LEO.
 - Preservar todas as transações.
 - Calcular percentual por linha.
@@ -345,6 +347,8 @@ Status: implementada.
 - Testar que os totais batem com o arquivo bruto.
 
 ### Etapa 6 - Processamento QuickPay sem API
+
+Status: implementada.
 
 - Gerar a tabela de conciliação com as colunas finais aprovadas.
 - Calcular bruto-líquido, diferença e porcentagem.

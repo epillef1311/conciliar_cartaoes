@@ -93,3 +93,47 @@ def test_validar_combined_shows_both_results(capsys):
     assert exit_code == 1
     assert "CIELO" in captured.out
     assert "QUICKPAY" in captured.out
+
+
+def test_gerar_cielo_creates_report(tmp_path, capsys):
+    exit_code = main(
+        [
+            "gerar-cielo",
+            "--arquivo",
+            "tests/fixtures/cielo/cielo_valido.xlsx",
+            "--data-inicio",
+            "2026-07-13",
+            "--data-fim",
+            "2026-07-13",
+            "--saida",
+            str(tmp_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "RELATORIO CIELO GERADO" in captured.out
+    assert "Transacoes incluidas: 2" in captured.out
+    assert (tmp_path / "CIELO_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx").exists()
+
+
+def test_gerar_quickpay_creates_report(tmp_path, capsys):
+    exit_code = main(
+        [
+            "gerar-quickpay",
+            "--arquivo",
+            "tests/fixtures/quickpay/quickpay_valido.xlsx",
+            "--data-inicio",
+            "2026-07-13",
+            "--data-fim",
+            "2026-07-13",
+            "--saida",
+            str(tmp_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "RELATORIO QUICKPAY GERADO" in captured.out
+    assert "Transacoes incluidas: 2" in captured.out
+    assert (tmp_path / "QUICKPAY_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx").exists()

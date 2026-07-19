@@ -46,7 +46,11 @@ class QuickPayValidator:
         erros.extend(self._validar_estrutura(resultado))
         for transacao in resultado.transacoes:
             erros.extend(self._validar_recebido_banco(resultado, transacao))
-            erros.extend(self._validar_valores(resultado, transacao))
+            for alerta_valor in self._validar_valores(resultado, transacao):
+                if alerta_valor.severidade in {SeveridadeAlerta.ERRO, SeveridadeAlerta.CRITICO}:
+                    erros.append(alerta_valor)
+                else:
+                    avisos.append(alerta_valor)
             avisos.extend(self._avisos_transacao(resultado, transacao))
         avisos.extend(self._validar_duplicidade(resultado))
         totais = self._totais(resultado)
@@ -139,7 +143,7 @@ class QuickPayValidator:
                     resultado,
                     transacao,
                     "recebido_banco",
-                    codigo="QUICKPAY_RECEBIDO_INVALIDO",
+                    codigo="QUICKPAY_RECEBIDO_NEGATIVO",
                     mensagem="Valor recebido no banco QuickPay nao pode ser negativo.",
                     severidade=SeveridadeAlerta.ERRO,
                     valor_recebido=banco,
@@ -162,7 +166,7 @@ class QuickPayValidator:
                     "taxa",
                     codigo="QUICKPAY_DIFERENCA_TAXA",
                     mensagem="Taxa difere de Valor da Venda menos Valor liquido.",
-                    severidade=SeveridadeAlerta.ERRO,
+                    severidade=SeveridadeAlerta.AVISO,
                     valor_recebido=transacao.taxa_normalizada,
                     contexto={
                         "valor_venda": transacao.valor_bruto,
@@ -180,7 +184,7 @@ class QuickPayValidator:
                     "valor_bruto",
                     codigo="QUICKPAY_VALOR_BRUTO_ZERO",
                     mensagem="Valor da venda zero impede calculo de porcentagem.",
-                    severidade=SeveridadeAlerta.ERRO,
+                    severidade=SeveridadeAlerta.AVISO,
                     valor_recebido=transacao.valor_bruto,
                 )
             )
