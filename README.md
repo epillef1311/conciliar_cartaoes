@@ -6,6 +6,14 @@ Automacao para conciliar vendas de Cielo e QuickPay com os registros de caixa ob
 
 Este repositorio esta na Etapa 9: workflow integrado com leitura, validacao, consulta Velo somente leitura, matching, exportacao independente de Cielo e QuickPay, logs e resumos de execucao. O modo simulado usa fixtures e zero internet; o modo real usa apenas `VELO_BEARER_TOKEN`.
 
+## Preparação em outro computador
+
+```powershell
+git clone <REPOSITORIO>
+cd conciliacaoCartoes
+.\scripts\preparar_ambiente.ps1
+```
+
 ## Premissas definitivas
 
 - O periodo informado representa a data da venda.
