@@ -357,6 +357,8 @@ Status: implementada.
 
 ### Etapa 7 - Cliente Velo com testes mockados
 
+Status: implementada.
+
 - Implementar cliente HTTP somente leitura.
 - Implementar tratamento de `401`, `403`, `400`, `500`, timeout e resposta não JSON.
 - Implementar autocomplete e fallback configurável.
@@ -365,17 +367,26 @@ Status: implementada.
 
 ### Etapa 8 - Matching e conciliação
 
+Status: implementada.
+
 - Implementar agrupamento por operadora, modalidade, data, valor e quantidade.
 - Implementar multiconjunto para valores repetidos.
 - Registrar sobras do sistema e da operadora.
 - Marcar correspondências ambíguas sem inventar pareamento.
+- Distinguir categoria não consultada de resposta consultada vazia.
+- Manter matching local, sem preencher `Sistema`, sem alterar Excel e sem chamada real à API.
 
 ### Etapa 9 - Workflow integrado
+
+Status: implementada.
 
 - Orquestrar API, Cielo e QuickPay.
 - Manter processamento independente por operadora.
 - Gerar logs sem dados sensíveis.
 - Gerar resumo final com arquivos criados, erros e divergências.
+- Implementar modo simulado com fixtures e zero internet.
+- Preencher `Sistema`, `Diferença Sistema` e `Status` na saída QuickPay integrada.
+- Preservar layout Cielo sem colunas da API.
 
 ### Etapa 10 - Homologação com dados reais
 
@@ -414,7 +425,7 @@ Status: implementada.
 
 ## 8. Pendências restantes
 
-- Implementar leitores, processadores, matching e cliente API nas próximas etapas.
-- Criar fixtures mínimas anonimizadas para testes unitários.
-- Homologar a saída Cielo contra o modelo LEO após a implementação do exportador.
-- Executar chamadas reais à API somente em etapa futura, com token temporário informado no ambiente.
+- Homologar o workflow com dados reais na Etapa 10.
+- Validar chamadas reais à API somente quando houver autorização explícita e token temporário no ambiente.
+- Comparar os relatórios gerados com o processo manual.
+- Ajustar regras de matching se a API real trouxer novos identificadores ou diferenças de contrato.

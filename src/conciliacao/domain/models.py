@@ -52,19 +52,30 @@ class TransacaoOperadora(ModeloDominio):
 
 
 class RegistroSistema(ModeloDominio):
-    conta_pacote_pagamento_unico_id: str = Field(alias="contaPacotePagamentoUnicoId")
+    id_sistema: str = Field(alias="contaPacotePagamentoUnicoId")
     operadora: str
-    forma_recebimento: str
+    operadora_id: int | None = Field(default=None, alias="operadoraId")
+    forma_recebimento: str = Field(alias="formaRecebimento")
+    forma_recebimento_id: int | None = Field(default=None, alias="formaRecebimentoId")
     tipo_cartao: str | int | None = None
     valor: Decimal
+    valor_taxa_cartao: Decimal | None = Field(default=None, alias="valorTaxaCartao")
     data_cadastro: date = Field(alias="dataCadastro")
     data_vencimento: date | None = Field(default=None, alias="dataVencimento")
     cadastro_caixa_id: str | None = Field(default=None, alias="cadastroCaixaId")
+    categoria_origem: str | None = None
+    dados_originais: dict[str, Any] | None = None
     identificadores_api: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("valor", mode="before")
+    @property
+    def conta_pacote_pagamento_unico_id(self) -> str:
+        return self.id_sistema
+
+    @field_validator("valor", "valor_taxa_cartao", mode="before")
     @classmethod
-    def normalize_value(cls, value: object) -> Decimal:
+    def normalize_value(cls, value: object | None) -> Decimal | None:
+        if value is None:
+            return None
         return parse_money(value)
 
 

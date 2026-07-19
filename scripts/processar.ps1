@@ -5,24 +5,54 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$DataFim,
 
-    [Parameter(Mandatory = $true)]
     [string]$ArquivoCielo,
 
-    [Parameter(Mandatory = $true)]
     [string]$ArquivoQuickpay,
+
+    [string]$Saida = "output",
+
+    [switch]$Sobrescrever,
+
+    [switch]$ModoSimulado,
+
+    [string]$FixturesApi,
+
+    [switch]$SalvarAuditoria,
 
     [switch]$DryRun
 )
+
+if (-not $ModoSimulado -and -not $env:VELO_BEARER_TOKEN) {
+    Write-Error "Defina VELO_BEARER_TOKEN no ambiente antes de executar em modo real."
+    exit 4
+}
 
 $argsList = @(
     "-m", "conciliacao.cli",
     "processar",
     "--data-inicio", $DataInicio,
     "--data-fim", $DataFim,
-    "--arquivo-cielo", $ArquivoCielo,
-    "--arquivo-quickpay", $ArquivoQuickpay
+    "--saida", $Saida
 )
 
+if ($ArquivoCielo) {
+    $argsList += @("--arquivo-cielo", $ArquivoCielo)
+}
+if ($ArquivoQuickpay) {
+    $argsList += @("--arquivo-quickpay", $ArquivoQuickpay)
+}
+if ($Sobrescrever) {
+    $argsList += "--sobrescrever"
+}
+if ($ModoSimulado) {
+    $argsList += "--modo-simulado"
+}
+if ($FixturesApi) {
+    $argsList += @("--fixtures-api", $FixturesApi)
+}
+if ($SalvarAuditoria) {
+    $argsList += "--salvar-auditoria"
+}
 if ($DryRun) {
     $argsList += "--dry-run"
 }

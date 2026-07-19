@@ -4,7 +4,7 @@ Automacao para conciliar vendas de Cielo e QuickPay com os registros de caixa ob
 
 ## Estado atual
 
-Este repositorio esta na Etapa 6: leitura, validacao, processamento e exportacao independente dos relatorios Cielo e QuickPay. Ainda nao ha integracao com API Velo, matching com ERP ou workflow completo.
+Este repositorio esta na Etapa 9: workflow integrado com leitura, validacao, consulta Velo somente leitura, matching, exportacao independente de Cielo e QuickPay, logs e resumos de execucao. O modo simulado usa fixtures e zero internet; o modo real usa apenas `VELO_BEARER_TOKEN`.
 
 ## Premissas definitivas
 
@@ -65,8 +65,8 @@ Calculos QuickPay:
 - `Bruto-Liquido = Valor da Venda - Valor liquido`
 - `Diferenca = Taxa - Bruto-Liquido`
 - `Porcentagem = 1 - Valor liquido / Valor da Venda`
-- `Sistema` e `Diferenca Sistema` ficam vazios nesta etapa.
-- `Status` fica `PENDENTE DE CONCILIAÇÃO COM SISTEMA`.
+
+No workflow integrado, `Sistema`, `Diferenca Sistema` e `Status` sao preenchidos a partir do matching com a API Velo. Nos comandos isolados `gerar-quickpay`, essas colunas permanecem no comportamento anterior.
 
 Quando `Valor da Venda` for zero, a porcentagem fica em branco e a validacao gera aviso. Diferencas de centavos entre `Taxa` e `Bruto-Liquido` sao preservadas; taxa negativa ou taxa maior que o valor da venda bloqueiam a geracao.
 
@@ -79,7 +79,18 @@ conciliacao validar-cielo `
   --data-fim 2026-07-15
 ```
 
-Exemplo previsto para uma execucao futura com workflow completo:
+Simular a integracao Velo sem internet:
+
+```powershell
+conciliacao testar-integracao-velo `
+  --fixtures "tests/fixtures/api" `
+  --data-inicio 2026-07-14 `
+  --data-fim 2026-07-15
+```
+
+Esse comando usa somente fixtures anonimizadas, nao exige token real, nao acessa rede e valida os schemas da API. A saida informa `Chamadas reais realizadas: 0`.
+
+Executar o workflow integrado em modo real:
 
 ```powershell
 $env:VELO_BEARER_TOKEN="TOKEN_AQUI"
@@ -87,17 +98,178 @@ conciliacao processar `
   --data-inicio 2026-07-13 `
   --data-fim 2026-07-13 `
   --arquivo-cielo "data/input/cielo.xlsx" `
-  --arquivo-quickpay "data/input/quickpay.xlsx"
+  --arquivo-quickpay "data/input/quickpay.xlsx" `
+  --saida "output" `
+  --salvar-auditoria
 ```
 
-Nesta etapa, o comando `processar` apenas valida argumentos e informa que o workflow completo ainda nao foi implementado.
+O token nunca e aceito como argumento de linha de comando. Nao ha login automatico por usuario e senha.
+
+Executar o workflow integrado em modo simulado:
+
+```powershell
+conciliacao processar `
+  --modo-simulado `
+  --fixtures-api "tests/fixtures/api" `
+  --data-inicio 2026-07-13 `
+  --data-fim 2026-07-13 `
+  --arquivo-cielo "tests/fixtures/cielo/cielo_valido.xlsx" `
+  --arquivo-quickpay "tests/fixtures/quickpay/quickpay_valido.xlsx" `
+  --saida "output/simulacao" `
+  --salvar-auditoria
+```
+
+Pelo menos um arquivo de operadora deve ser informado. Cielo e QuickPay sao processadas de forma independente: se uma falhar na leitura, validacao ou exportacao, a outra ainda pode concluir.
+
+Codigos de saida do `processar`:
+
+- `0`: sucesso total.
+- `1`: falha global.
+- `2`: sucesso parcial.
+- `3`: falha de validacao sem nenhuma operadora concluida.
+- `4`: falha de autenticacao Velo.
+- `5`: falha de integracao Velo.
+
+Arquivos gerados pelo workflow:
+
+```text
+output/cielo/CIELO_CONCILIACAO_<PERIODO>.xlsx
+output/cielo/CIELO_CONCILIACAO_<PERIODO>_RESULTADO.json
+output/quickpay/QUICKPAY_CONCILIACAO_<PERIODO>.xlsx
+output/quickpay/QUICKPAY_CONCILIACAO_<PERIODO>_RESULTADO.json
+output/execucoes/<IDENTIFICADOR_EXECUCAO>/resumo.json
+output/execucoes/<IDENTIFICADOR_EXECUCAO>/resumo.txt
+logs/conciliacao_<IDENTIFICADOR_EXECUCAO>.log
+data/api_raw/<IDENTIFICADOR_EXECUCAO>/*.json
+```
+
+Os hashes SHA-256 dos arquivos de entrada sao calculados antes e depois do processamento. Se um hash mudar, a execucao daquela operadora falha.
+
+## Integracao Velo
+
+A configuracao fica em `config/velo_api.yaml`. A base URL configurada e:
+
+```text
+https://api.v1.velosistema.com.br
+```
+
+Endpoints modelados nesta etapa:
+
+- `GET /autoCompletarOperadora`
+- `GET /listarConciliacaoCartaoRecebido`
+
+Autenticacao:
+
+- O token deve vir exclusivamente de `VELO_BEARER_TOKEN`.
+- `.env.example` contem apenas `VELO_BEARER_TOKEN=`.
+- O token nao pode ser salvo em YAML, logs, fixtures, auditoria ou mensagens de erro.
+- O cliente monta internamente `Authorization: Bearer <TOKEN>` e `Accept: application/json`.
+
+Parametros enviados para conciliacao:
+
+```text
+operadoraId=<filtro_forma_recebimento_id>
+intervaloDia=-1
+dataInicio=YYYY-MM-DD
+dataFim=YYYY-MM-DD
+isCompensado=0
+```
+
+Particularidade: o parametro HTTP se chama `operadoraId`, mas os valores observados correspondem aos IDs de formas de recebimento. Internamente o projeto usa o nome `filtro_forma_recebimento_id`.
+
+IDs de fallback configurados:
+
+- Cielo credito: `81`
+- Cielo debito: `86`
+- Cielo Pix: `91`
+- QuickPay credito: `44`
+- QuickPay debito: `51`
+- QuickPay Pix: `42`
+
+A resolucao tenta primeiro `/autoCompletarOperadora`, normaliza nomes, aceita variacoes controladas como `QuickPay`/`Quickpay` e o erro conhecido `Cartao de Dedido - Quickpay`, e usa fallback configurado com aviso quando a modalidade esperada nao aparece.
+
+Auditoria:
+
+- Quando habilitada, respostas brutas sao salvas em `data/api_raw/<DATA_HORA_EXECUCAO>/`.
+- `metadata.json` registra periodo, `intervalo_dia`, `is_compensado` e categorias solicitadas.
+- Bearer Token, `Authorization`, cookies e cabecalhos completos nunca sao salvos.
+- A escrita e atomica: arquivo temporario primeiro, renomeacao depois de JSON valido.
+
+Erros tratados:
+
+- `400`: parametros invalidos.
+- `401`: token Bearer ausente, invalido ou expirado.
+- `403`: acesso negado.
+- `404`: endpoint nao encontrado.
+- `429`: limite de requisicoes.
+- `500` a `599`: erro da API.
+- Timeout, falha de conexao, resposta nao JSON e contrato invalido.
+
+Os testes bloqueiam sockets reais e usam transporte fake. Retentativas permanecem desabilitadas por padrao.
+
+## Matching e conciliacao
+
+A Etapa 8 implementa matching local, deterministico e sem internet entre:
+
+```text
+valor bruto da operadora
+versus
+valor do sistema Velo
+```
+
+A chave principal usa:
+
+```text
+operadora + modalidade + data da venda/dataCadastro + valor
+```
+
+A bandeira entra somente quando existe de forma confiavel nos dois lados. A API ainda nao traz NSU, TID, codigo de autorizacao ou horario; por isso o projeto nao promete pareamento transacional exato quando a chave nao prova a identidade da linha. Nesses casos, o resultado pode ser agregado.
+
+Regras principais:
+
+- Cielo nunca combina com QuickPay.
+- Credito, debito e Pix nao combinam entre si.
+- `dataCadastro` e a data principal do sistema; `dataVencimento` e auxiliar.
+- Hora da operadora nao entra na chave, porque a API nao fornece horario.
+- `valorTaxaCartao`, taxa, valor liquido e recebido no banco QuickPay nao entram na chave.
+- Valores repetidos sao tratados como multiconjunto.
+- Nenhum registro do sistema e consumido duas vezes.
+- Qualquer diferenca de R$ 0,01 e preservada; tolerancia monetaria e `R$ 0,00`.
+- Categoria nao consultada gera `PENDENTE_DE_DADOS`; categoria consultada com resposta vazia pode gerar `NAO_ENCONTRADO_NO_SISTEMA`.
+
+Status possiveis:
+
+- `CONCILIADO`
+- `DIVERGENCIA_DE_VALOR`
+- `DIVERGENCIA_DE_QUANTIDADE`
+- `NAO_ENCONTRADO_NO_SISTEMA`
+- `NAO_ENCONTRADO_NA_OPERADORA`
+- `CORRESPONDENCIA_AMBIGUA`
+- `PENDENTE_DE_DADOS`
+
+Simular matching sem internet:
+
+```powershell
+conciliacao testar-matching `
+  --operadora cielo `
+  --fixtures "tests/fixtures/matching"
+```
+
+```powershell
+conciliacao testar-matching `
+  --operadora quickpay `
+  --fixtures "tests/fixtures/matching" `
+  --sistema-extra
+```
+
+O comando usa fixtures artificiais, nao exige token, nao acessa rede, nao altera Excel e imprime um resumo textual.
 
 ## Limitacoes atuais
 
-- Nao ha comparacao com a API Velo.
-- Nao ha matching com ERP/sistema.
 - Nao ha conciliacao automatica com o sistema.
 - As saidas Cielo e QuickPay tem somente a aba principal, sem abas auxiliares.
+- A Etapa 10 ainda precisa homologar o workflow com dados reais e token temporario autorizado.
+- A API continua estritamente somente leitura; nao ha compensacao, alteracao de caixa nem escrita no ERP.
 
 ## Desenvolvimento
 

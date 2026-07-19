@@ -8,10 +8,6 @@ query:
   intervalo_dia: -1
   is_compensado: 0
 
-date_mapping:
-  primary_cash_date: "dataCadastro"
-  auxiliary_due_date: "dataVencimento"
-
 formas_recebimento_fallback:
   cielo_credito: 81
   cielo_debito: 86
@@ -26,5 +22,14 @@ fallback_policy:
   ask_interactive_confirmation: false
   reject_if_returned_name_indicates_different_modality: true
 
-timeout_seconds: 30
+timeouts:
+  connect_seconds: 10
+  read_seconds: 30
 
+retries:
+  enabled: false
+  max_attempts: 1
+
+audit:
+  save_raw_responses: true
+  raw_directory: "data/api_raw"

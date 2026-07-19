@@ -1,0 +1,28 @@
+[
+  {
+    "contaPacotePagamentoUnicoId": "SYS-QP-CRED-1",
+    "operadora": "QuickPay",
+    "operadoraId": 44,
+    "formaRecebimento": "Cartão de Crédito - Quickpay",
+    "formaRecebimentoId": 44,
+    "tipo_cartao": "Visa",
+    "valor": "126.83",
+    "valorTaxaCartao": "0.00",
+    "dataCadastro": "2026-07-13",
+    "dataVencimento": "2026-07-14",
+    "cadastroCaixaId": "QPX-1"
+  },
+  {
+    "contaPacotePagamentoUnicoId": "SYS-QP-CRED-2",
+    "operadora": "QuickPay",
+    "operadoraId": 44,
+    "formaRecebimento": "Cartão de Crédito - Quickpay",
+    "formaRecebimentoId": 44,
+    "tipo_cartao": "Mastercard",
+    "valor": "194.00",
+    "valorTaxaCartao": "0.00",
+    "dataCadastro": "2026-07-13",
+    "dataVencimento": "2026-07-14",
+    "cadastroCaixaId": "QPX-2"
+  }
+]

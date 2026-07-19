@@ -1,0 +1,16 @@
+[
+  {
+    "contaPacotePagamentoUnicoId": "CD-001",
+    "operadoraId": 86,
+    "operadora": "Cielo",
+    "cadastroCaixaId": "CX-200",
+    "formaRecebimentoId": 86,
+    "formaRecebimento": "Cartão de Débito - Cielo",
+    "tipoCartao": "Visa",
+    "valor": "88.45",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-15",
+    "dataCadastro": "2026-07-14",
+    "campoExtraFuturo": "debito"
+  }
+]

@@ -11,6 +11,8 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from conciliacao.domain.enums import StatusConciliacao
+from conciliacao.matching.models import ResultadoConciliacaoOperadora, ResultadoIndividualMatching
 from conciliacao.processors.quickpay_processor import (
     QuickPayLinhaProcessada,
     QuickPayRelatorioProcessado,
@@ -37,6 +39,15 @@ QUICKPAY_HEADERS = [
 
 STATUS_PENDENTE = "PENDENTE DE CONCILIAÇÃO COM SISTEMA"
 SHEET_NAME = "Conciliação"
+STATUS_LABELS = {
+    StatusConciliacao.CONCILIADO: "CONCILIADO",
+    StatusConciliacao.DIVERGENCIA_DE_VALOR: "DIVERGENCIA DE VALOR",
+    StatusConciliacao.DIVERGENCIA_DE_QUANTIDADE: "DIVERGENCIA DE QUANTIDADE",
+    StatusConciliacao.NAO_ENCONTRADO_NO_SISTEMA: "NAO ENCONTRADO NO SISTEMA",
+    StatusConciliacao.NAO_ENCONTRADO_NA_OPERADORA: "NAO ENCONTRADO NA OPERADORA",
+    StatusConciliacao.CORRESPONDENCIA_AMBIGUA: "CORRESPONDENCIA AMBIGUA",
+    StatusConciliacao.PENDENTE_DE_DADOS: "PENDENTE DE DADOS",
+}
 MONEY_FORMAT = r'\R\$\ * #,##0.00;[Red]\-\R\$\ * #,##0.00'
 PERCENT_FORMAT = "0.00%"
 DATE_FORMAT = "dd/mm/yyyy"
@@ -58,6 +69,7 @@ class QuickPayExporter:
         *,
         diretorio_saida: str | Path,
         sobrescrever: bool = False,
+        matching: ResultadoConciliacaoOperadora | None = None,
     ) -> QuickPayExportResult:
         output_dir = Path(diretorio_saida)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -73,7 +85,7 @@ class QuickPayExporter:
         if worksheet is None:
             raise ValueError("nao foi possivel criar a aba Conciliação")
         worksheet.title = SHEET_NAME
-        _escrever_planilha(worksheet, relatorio)
+        _escrever_planilha(worksheet, relatorio, matching=matching)
         workbook.save(output_path)
         workbook.close()
 
@@ -83,7 +95,7 @@ class QuickPayExporter:
             ultima_linha_transacao=2 + len(relatorio.linhas),
             validacao_saida_ok=False,
         )
-        _validar_exportacao(output_path, relatorio, result)
+        _validar_exportacao(output_path, relatorio, result, matching=matching)
         return QuickPayExportResult(
             caminho_saida=result.caminho_saida,
             total_row=result.total_row,
@@ -92,7 +104,12 @@ class QuickPayExporter:
         )
 
 
-def _escrever_planilha(worksheet: Worksheet, relatorio: QuickPayRelatorioProcessado) -> None:
+def _escrever_planilha(
+    worksheet: Worksheet,
+    relatorio: QuickPayRelatorioProcessado,
+    *,
+    matching: ResultadoConciliacaoOperadora | None,
+) -> None:
     worksheet["A1"] = relatorio.titulo
     worksheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(QUICKPAY_HEADERS))
     worksheet.row_dimensions[1].height = 24
@@ -105,14 +122,26 @@ def _escrever_planilha(worksheet: Worksheet, relatorio: QuickPayRelatorioProcess
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.border = _thin_border()
 
+    matching_por_linha = _matching_por_linha(matching)
     for index, linha in enumerate(relatorio.linhas, start=3):
-        _escrever_linha(worksheet, index, linha)
+        _escrever_linha(
+            worksheet,
+            index,
+            linha,
+            matching_por_linha.get(linha.transacao.linha_original),
+        )
     _escrever_total_geral(worksheet, relatorio)
     _aplicar_estilo(worksheet, relatorio, 3 + len(relatorio.linhas))
 
 
-def _escrever_linha(worksheet: Worksheet, row: int, linha: QuickPayLinhaProcessada) -> None:
+def _escrever_linha(
+    worksheet: Worksheet,
+    row: int,
+    linha: QuickPayLinhaProcessada,
+    matching: ResultadoIndividualMatching | None,
+) -> None:
     transacao = linha.transacao
+    sistema, diferenca_sistema, status = _campos_sistema(transacao.valor_bruto, matching)
     values = [
         transacao.data_venda,
         transacao.data_recebimento,
@@ -126,9 +155,9 @@ def _escrever_linha(worksheet: Worksheet, row: int, linha: QuickPayLinhaProcessa
         f"=G{row}-I{row}",
         f'=IF(F{row}=0,"",1-(H{row}/F{row}))',
         linha.recebido_banco,
-        None,
-        None,
-        STATUS_PENDENTE,
+        sistema,
+        diferenca_sistema,
+        status,
     ]
     for column, value in enumerate(values, start=1):
         worksheet.cell(row, column, value)
@@ -199,7 +228,11 @@ def _aplicar_estilo(
 
 
 def _validar_exportacao(
-    path: Path, relatorio: QuickPayRelatorioProcessado, result: QuickPayExportResult
+    path: Path,
+    relatorio: QuickPayRelatorioProcessado,
+    result: QuickPayExportResult,
+    *,
+    matching: ResultadoConciliacaoOperadora | None,
 ) -> None:
     workbook = load_workbook(path, read_only=False, data_only=False)
     try:
@@ -214,7 +247,7 @@ def _validar_exportacao(
         if result.ultima_linha_transacao != 2 + len(relatorio.linhas):
             raise ValueError("quantidade de transacoes QuickPay exportadas invalida")
         _validar_formulas(worksheet, relatorio, result)
-        _validar_valores(worksheet, relatorio, result)
+        _validar_valores(worksheet, relatorio, result, matching=matching)
         _validar_erros_formula(worksheet)
     finally:
         workbook.close()
@@ -243,12 +276,17 @@ def _validar_formulas(
 
 
 def _validar_valores(
-    worksheet: Worksheet, relatorio: QuickPayRelatorioProcessado, result: QuickPayExportResult
+    worksheet: Worksheet,
+    relatorio: QuickPayRelatorioProcessado,
+    result: QuickPayExportResult,
+    *,
+    matching: ResultadoConciliacaoOperadora | None,
 ) -> None:
     bruto = Decimal("0.00")
     taxa = Decimal("0.00")
     liquido = Decimal("0.00")
     recebido = Decimal("0.00")
+    matching_por_linha = _matching_por_linha(matching)
     for row, linha in enumerate(relatorio.linhas, start=3):
         bruto += Decimal(str(worksheet.cell(row, 6).value))
         taxa += Decimal(str(worksheet.cell(row, 7).value))
@@ -256,9 +294,15 @@ def _validar_valores(
         recebido += Decimal(str(worksheet.cell(row, 12).value))
         if Decimal(str(worksheet.cell(row, 12).value)) != linha.recebido_banco:
             raise ValueError(f"valor recebido QuickPay nao preservado na linha {row}")
-        if worksheet.cell(row, 13).value is not None or worksheet.cell(row, 14).value is not None:
-            raise ValueError(f"colunas Sistema devem permanecer vazias na linha {row}")
-        if worksheet.cell(row, 15).value != STATUS_PENDENTE:
+        expected = _campos_sistema(
+            linha.transacao.valor_bruto,
+            matching_por_linha.get(linha.transacao.linha_original),
+        )
+        if _money_cell(worksheet.cell(row, 13).value) != expected[0]:
+            raise ValueError(f"valor de Sistema QuickPay invalido na linha {row}")
+        if _money_cell(worksheet.cell(row, 14).value) != expected[1]:
+            raise ValueError(f"Diferenca Sistema QuickPay invalida na linha {row}")
+        if worksheet.cell(row, 15).value != expected[2]:
             raise ValueError(f"status QuickPay invalido na linha {row}")
 
     if result.total_row != 3 + len(relatorio.linhas):
@@ -287,6 +331,42 @@ def _resolver_saida(path: Path, *, sobrescrever: bool) -> Path:
         return path
     suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
     return path.with_name(f"{path.stem}_{suffix}{path.suffix}")
+
+
+def _matching_por_linha(
+    matching: ResultadoConciliacaoOperadora | None,
+) -> dict[int, ResultadoIndividualMatching]:
+    if matching is None:
+        return {}
+    result: dict[int, ResultadoIndividualMatching] = {}
+    for item in matching.individuais:
+        transacao = item.transacao_operadora
+        if transacao is not None:
+            result[transacao.linha_original] = item
+    return result
+
+
+def _campos_sistema(
+    valor_operadora: Decimal,
+    matching: ResultadoIndividualMatching | None,
+) -> tuple[Decimal | None, Decimal | None, str]:
+    if matching is None:
+        return None, None, STATUS_PENDENTE
+    status = STATUS_LABELS[matching.status]
+    if (
+        matching.registro_sistema is not None
+        and matching.status
+        in {StatusConciliacao.CONCILIADO, StatusConciliacao.DIVERGENCIA_DE_VALOR}
+    ):
+        sistema = matching.registro_sistema.valor
+        return sistema, quantize_money(valor_operadora - sistema), status
+    return None, None, status
+
+
+def _money_cell(value: object) -> Decimal | None:
+    if value is None:
+        return None
+    return quantize_money(Decimal(str(value)))
 
 
 def _yellow_fill() -> PatternFill:
