@@ -1,0 +1,9 @@
+[
+  {
+    "contaPacotePagamentoUnicoId": "INVALIDO-001",
+    "operadora": "Cielo",
+    "formaRecebimento": "Cartão de Crédito - Cielo",
+    "valor": "texto monetario invalido",
+    "dataVencimento": "2026-07-15"
+  }
+]

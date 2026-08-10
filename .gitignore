@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+node_modules/
+*.inspect.ndjson
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+
+# Local login experiments and browser session data
+LoginTest/
+outputs/
+*.zip
+**/chrome_profile/
+**/cdp_chrome_profile/
+
+# Real inputs, generated outputs, logs and API audit payloads
+arquivos_exemplo/
+data/input/**
+data/api_raw/**
+data/processed/**
+data/archive/**
+data/local/**
+output/**
+logs/**
+homologacao/**
+!data/
+!data/input/
+!data/api_raw/
+!data/processed/
+!data/archive/
+!data/input/.gitkeep
+!data/api_raw/.gitkeep
+!data/processed/.gitkeep
+!data/archive/.gitkeep
+!output/
+!output/cielo/
+!output/quickpay/
+!output/cielo/.gitkeep
+!output/quickpay/.gitkeep
+!logs/
+!logs/.gitkeep
+
+# Office temporary files
+~$*.xlsx
+~$*.xls

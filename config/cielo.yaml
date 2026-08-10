@@ -1,0 +1,27 @@
+input:
+  period_source_field: "Data da venda"
+  administrative_date_field: "Data de pagamento"
+
+output:
+  workbook_name_pattern: "CIELO_CONCILIACAO_{data_inicio}_A_{data_fim}.xlsx"
+  main_sheet_name: "Planilha1"
+  reproduce_leo_layout: true
+  include_only_main_sheet_v1: true
+  preserve_fee_sign_visual: true
+
+sorting:
+  priority:
+    - "Data de pagamento"
+    - "Tipo de lançamento"
+    - "Forma de pagamento"
+    - "Data da venda"
+    - "Hora da venda"
+  pix_own_block: true
+
+subtotals:
+  dynamic: true
+  group_by:
+    - "Data de pagamento"
+    - "Tipo de lançamento"
+    - "modalidade_relevante"
+

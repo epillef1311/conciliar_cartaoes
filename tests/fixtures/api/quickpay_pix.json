@@ -1,0 +1,28 @@
+[
+  {
+    "contaPacotePagamentoUnicoId": "QP-001",
+    "operadoraId": 42,
+    "operadora": "QuickPay",
+    "cadastroCaixaId": "CX-500",
+    "formaRecebimentoId": 42,
+    "formaRecebimento": "Pix - Quickpay",
+    "tipoCartao": "Pix",
+    "valor": "10.25",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-15",
+    "dataCadastro": "2026-07-14"
+  },
+  {
+    "contaPacotePagamentoUnicoId": "QP-002",
+    "operadoraId": 42,
+    "operadora": "QuickPay",
+    "cadastroCaixaId": "CX-501",
+    "formaRecebimentoId": 42,
+    "formaRecebimento": "Pix - Quickpay",
+    "tipoCartao": "Pix",
+    "valor": "11.25",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-15",
+    "dataCadastro": "2026-07-14"
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "identificador_origem": "QP-CRED-1",
+    "modalidade": "CREDITO",
+    "bandeira": "Visa",
+    "data_venda": "2026-07-13",
+    "hora_venda": "11:35",
+    "data_recebimento": "2026-07-14",
+    "numero_parcelas": 1,
+    "valor_bruto": "126.83",
+    "valor_liquido": "121.77",
+    "taxa_original": "5.03",
+    "linha_original": 3,
+    "recebido_no_banco_quickpay": "121.80"
+  },
+  {
+    "identificador_origem": "QP-CRED-2",
+    "modalidade": "CREDITO",
+    "bandeira": "Mastercard",
+    "data_venda": "2026-07-13",
+    "hora_venda": "11:05",
+    "data_recebimento": "2026-07-14",
+    "numero_parcelas": 1,
+    "valor_bruto": "194.00",
+    "valor_liquido": "186.26",
+    "taxa_original": "7.69",
+    "linha_original": 4,
+    "recebido_no_banco_quickpay": "186.30"
+  }
+]

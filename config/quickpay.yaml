@@ -1,0 +1,30 @@
+input:
+  required_bank_received_column: "RECEBIDO NO BANCO QUICKPAY"
+  required_bank_received_column_scope: "transaction_table"
+  reject_legacy_bank_received_block: true
+  bank_received_association: "same_row"
+
+output:
+  workbook_name_pattern: "QUICKPAY_CONCILIACAO_{data_inicio}_A_{data_fim}.xlsx"
+  columns:
+    - "Data da venda"
+    - "Data de recebimento"
+    - "Número de Parcelas"
+    - "Bandeira"
+    - "Tipo de pagamento"
+    - "Valor da Venda"
+    - "Taxa"
+    - "Valor líquido"
+    - "Bruto-Líquido"
+    - "Diferença"
+    - "Porcentagem"
+    - "RECEBIDO NO BANCO QUICKPAY"
+    - "Sistema"
+    - "Diferença Sistema"
+    - "Status"
+
+matching:
+  system_value_column: "Sistema"
+  system_difference_formula: "Valor da Venda - Sistema"
+  no_monetary_tolerance: true
+

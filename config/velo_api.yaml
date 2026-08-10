@@ -1,0 +1,35 @@
+base_url: "https://api.example.invalid"
+
+endpoints:
+  autocomplete_operadoras: "/operators/autocomplete"
+  conciliacao_recebidos: "/reconciliation/card-receipts"
+
+query:
+  intervalo_dia: -1
+  is_compensado: 0
+
+formas_recebimento_fallback:
+  cielo_credito: 101
+  cielo_debito: 102
+  cielo_pix: 103
+  quickpay_credito: 104
+  quickpay_debito: 105
+  quickpay_pix: 106
+
+fallback_policy:
+  use_when_autocomplete_fails: true
+  log_alert: true
+  ask_interactive_confirmation: false
+  reject_if_returned_name_indicates_different_modality: true
+
+timeouts:
+  connect_seconds: 10
+  read_seconds: 30
+
+retries:
+  enabled: false
+  max_attempts: 1
+
+audit:
+  save_raw_responses: true
+  raw_directory: "data/api_raw"
