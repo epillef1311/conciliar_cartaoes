@@ -57,29 +57,34 @@ def ler_cielo(path: str | Path) -> ResultadoLeitura:
                 f"o leitor Cielo requer XLSX; formato detectado: {formato.value}"
             )
 
-        workbook = load_workbook(
-            file_path,
-            read_only=True,
-            data_only=False,
-            keep_links=False,
-            keep_vba=False,
-        )
-        try:
-            linhas = _linhas_para_busca(workbook)
-            header = localizar_cabecalho(linhas, CIELO_REGRAS, arquivo=str(file_path))
-            worksheet = workbook[header.local]
-            headers = cabecalhos_originais(header.valores)
-            totalizador = _extrair_totalizador(worksheet, header.numero_linha)
-            transactions = _extrair_transacoes(
-                worksheet=worksheet,
-                header_row=header.numero_linha,
-                headers=headers,
-                indices=header.indices,
-                totalizador=totalizador,
-                arquivo=file_path,
+        # O nome do arquivo pode terminar em .xls mesmo quando a assinatura indica
+        # um XLSX. Abrir pelo fluxo binario evita que o openpyxl use a extensao para
+        # recusar um conteudo que ja foi validado por detectar_formato().
+        with file_path.open("rb") as source:
+            workbook = load_workbook(
+                source,
+                read_only=True,
+                data_only=False,
+                keep_links=False,
+                keep_vba=False,
             )
-        finally:
-            workbook.close()
+            try:
+                _recalcular_dimensoes(workbook)
+                linhas = _linhas_para_busca(workbook)
+                header = localizar_cabecalho(linhas, CIELO_REGRAS, arquivo=str(file_path))
+                worksheet = workbook[header.local]
+                headers = cabecalhos_originais(header.valores)
+                totalizador = _extrair_totalizador(worksheet, header.numero_linha)
+                transactions = _extrair_transacoes(
+                    worksheet=worksheet,
+                    header_row=header.numero_linha,
+                    headers=headers,
+                    indices=header.indices,
+                    totalizador=totalizador,
+                    arquivo=file_path,
+                )
+            finally:
+                workbook.close()
 
     return ResultadoLeitura(
         caminho_arquivo=file_path,
@@ -101,6 +106,12 @@ def _linhas_para_busca(workbook: Workbook) -> list[LinhaParaBusca]:
                 break
             linhas.append(LinhaParaBusca(worksheet.title, row_number, row))
     return linhas
+
+
+def _recalcular_dimensoes(workbook: Workbook) -> None:
+    """Ignora dimensoes declaradas incorretamente em relatorios exportados pela Cielo."""
+    for worksheet in workbook.worksheets:
+        worksheet.reset_dimensions()
 
 
 def _extrair_transacoes(

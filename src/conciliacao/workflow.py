@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import Field, model_validator
 
-from conciliacao.domain.enums import Operadora
+from conciliacao.domain.enums import Modalidade, Operadora
 from conciliacao.domain.models import ModeloDominio, RegistroSistema, TransacaoOperadora
 from conciliacao.exporters import CieloExporter, QuickPayExporter
 from conciliacao.integrations.velo.audit import VeloAuditWriter
@@ -46,6 +46,7 @@ from conciliacao.matching import ReconciliationService, ResultadoConciliacaoOper
 from conciliacao.processors import CieloProcessor, QuickPayProcessor
 from conciliacao.processors.cielo_processor import CieloRelatorioProcessado
 from conciliacao.processors.quickpay_processor import QuickPayRelatorioProcessado
+from conciliacao.quickpay.recebimentos_bancarios import ler_recebimentos_bancarios
 from conciliacao.readers.cielo_reader import ler_cielo
 from conciliacao.readers.models import ResultadoLeitura
 from conciliacao.readers.quickpay_reader import ler_quickpay
@@ -79,7 +80,9 @@ class ReconciliationCommand(ModeloDominio):
     data_fim: date
     arquivo_cielo: Path | None = None
     arquivo_quickpay: Path | None = None
+    arquivo_recebimentos_quickpay: Path | None = None
     diretorio_saida: Path = Path("output")
+    diretorio_planilhas: Path = Path("planilhas")
     sobrescrever: bool = False
     modo_simulado: bool = False
     diretorio_fixtures_api: Path | None = None
@@ -98,8 +101,22 @@ class ReconciliationCommand(ModeloDominio):
             raise ValueError(f"arquivo Cielo nao encontrado: {self.arquivo_cielo}")
         if self.arquivo_quickpay is not None and not self.arquivo_quickpay.is_file():
             raise ValueError(f"arquivo QuickPay nao encontrado: {self.arquivo_quickpay}")
+        if self.arquivo_recebimentos_quickpay is not None and self.arquivo_quickpay is None:
+            raise ValueError("recebimentos bancarios QuickPay exigem arquivo QuickPay")
+        if (
+            self.arquivo_recebimentos_quickpay is not None
+            and not self.arquivo_recebimentos_quickpay.is_file()
+        ):
+            raise ValueError(
+                "planilha de recebimentos QuickPay nao encontrada: "
+                f"{self.arquivo_recebimentos_quickpay}"
+            )
         if self.diretorio_saida.exists() and not self.diretorio_saida.is_dir():
             raise ValueError(f"diretorio de saida invalido: {self.diretorio_saida}")
+        if self.diretorio_planilhas.exists() and not self.diretorio_planilhas.is_dir():
+            raise ValueError(
+                f"diretorio de planilhas invalido: {self.diretorio_planilhas}"
+            )
         if self.diretorio_fixtures_api is not None and not self.diretorio_fixtures_api.is_dir():
             raise ValueError(f"diretorio de fixtures API invalido: {self.diretorio_fixtures_api}")
         return self
@@ -159,14 +176,17 @@ class ReconciliationWorkflow:
         *,
         config: VeloApiConfig | None = None,
         transport: HttpTransport | None = None,
+        token_provider: TokenProvider | None = None,
     ) -> None:
         self.config = config
         self.transport = transport
+        self.token_provider = token_provider
 
     def executar(self, comando: ReconciliationCommand) -> WorkflowResult:
         started = datetime.now(ZoneInfo("America/Sao_Paulo"))
         perf_started = perf_counter()
         execution_id = comando.identificador_execucao or _execution_id(started)
+        data_conciliacao = started.date()
         log_path = Path("logs") / f"conciliacao_{execution_id}.log"
         logger = _setup_logger(log_path)
         logger.info("inicio execucao=%s modo=%s", execution_id, _mode(comando).value)
@@ -181,15 +201,18 @@ class ReconciliationWorkflow:
         try:
             prepared, early_results = self._preparar_operadoras(comando, logger)
             categorias = _categorias_necessarias(prepared)
+            periodos_consulta = _periodos_consulta_por_categoria(comando, prepared)
             resultado_api, registros_por_categoria = self._consultar_api(
                 comando,
                 execution_id=execution_id,
                 categorias=categorias,
+                periodos=periodos_consulta,
                 logger=logger,
             )
             resultado_cielo = self._finalizar_cielo(
                 comando,
                 execution_id=execution_id,
+                data_conciliacao=data_conciliacao,
                 prepared=prepared.get(Operadora.CIELO),
                 early_result=early_results.get(Operadora.CIELO),
                 resultado_api=resultado_api,
@@ -199,6 +222,7 @@ class ReconciliationWorkflow:
             resultado_quickpay = self._finalizar_quickpay(
                 comando,
                 execution_id=execution_id,
+                data_conciliacao=data_conciliacao,
                 prepared=prepared.get(Operadora.QUICKPAY),
                 early_result=early_results.get(Operadora.QUICKPAY),
                 resultado_api=resultado_api,
@@ -208,7 +232,7 @@ class ReconciliationWorkflow:
         except VeloAuthenticationError as exc:
             message = (
                 "Token Bearer ausente, invalido ou expirado. "
-                "Forneca um novo token pela variavel VELO_BEARER_TOKEN."
+                "Conclua um novo login para continuar."
             )
             erros_globais.append(message)
             logger.error("falha autenticacao endpoint=%s", exc.endpoint)
@@ -269,6 +293,7 @@ class ReconciliationWorkflow:
         *,
         execution_id: str,
         categorias: tuple[CategoriaFiltroVelo, ...],
+        periodos: dict[CategoriaFiltroVelo, tuple[date, date]],
         logger: logging.Logger,
     ) -> tuple[ResultadoApiWorkflow, dict[CategoriaFiltroVelo, tuple[RegistroSistema, ...]]]:
         if not categorias:
@@ -282,7 +307,7 @@ class ReconciliationWorkflow:
             transport = FixtureVeloTransport(comando.diretorio_fixtures_api, config)
             token_provider = StaticTokenProvider()
         else:
-            token_provider = VeloTokenProvider()
+            token_provider = self.token_provider or VeloTokenProvider()
 
         client = VeloClient(
             config,
@@ -296,14 +321,19 @@ class ReconciliationWorkflow:
         erros: dict[CategoriaFiltroVelo, str] = {}
         for categoria in categorias:
             try:
+                inicio, fim = periodos[categoria]
                 registros[categoria] = service.consultar_categoria(
                     categoria,
-                    data_inicio=comando.data_inicio,
-                    data_fim=comando.data_fim,
+                    data_inicio=inicio,
+                    data_fim=fim,
                     resolucao=resolucao,
                 )
                 logger.info(
-                    "api categoria=%s registros=%s", categoria.value, len(registros[categoria])
+                    "api categoria=%s inicio=%s fim=%s registros=%s",
+                    categoria.value,
+                    inicio.isoformat(),
+                    fim.isoformat(),
+                    len(registros[categoria]),
                 )
             except VeloAuthenticationError:
                 raise
@@ -333,6 +363,7 @@ class ReconciliationWorkflow:
         comando: ReconciliationCommand,
         *,
         execution_id: str,
+        data_conciliacao: date,
         prepared: _PreparedOperator | None,
         early_result: ResultadoOperadoraWorkflow | None,
         resultado_api: ResultadoApiWorkflow,
@@ -361,7 +392,8 @@ class ReconciliationWorkflow:
         try:
             output_path = _exportar_cielo_atomico(
                 relatorio,
-                comando.diretorio_saida / "cielo",
+                matching,
+                _diretorio_planilha(comando, data_conciliacao, Operadora.CIELO),
                 sobrescrever=comando.sobrescrever,
                 execution_id=execution_id,
             )
@@ -393,6 +425,7 @@ class ReconciliationWorkflow:
         comando: ReconciliationCommand,
         *,
         execution_id: str,
+        data_conciliacao: date,
         prepared: _PreparedOperator | None,
         early_result: ResultadoOperadoraWorkflow | None,
         resultado_api: ResultadoApiWorkflow,
@@ -422,7 +455,7 @@ class ReconciliationWorkflow:
             output_path = _exportar_quickpay_atomico(
                 relatorio,
                 matching,
-                comando.diretorio_saida / "quickpay",
+                _diretorio_planilha(comando, data_conciliacao, Operadora.QUICKPAY),
                 sobrescrever=comando.sobrescrever,
                 execution_id=execution_id,
             )
@@ -468,9 +501,15 @@ class _PreparedOperator:
     hash_antes: str | None = None
 
 
-def _preparar_cielo(
-    comando: ReconciliationCommand, logger: logging.Logger
-) -> _PreparedOperator:
+def _diretorio_planilha(
+    comando: ReconciliationCommand,
+    data_conciliacao: date,
+    operadora: Operadora,
+) -> Path:
+    return comando.diretorio_planilhas / data_conciliacao.isoformat() / operadora.value.lower()
+
+
+def _preparar_cielo(comando: ReconciliationCommand, logger: logging.Logger) -> _PreparedOperator:
     assert comando.arquivo_cielo is not None
     hash_antes = sha256_file(comando.arquivo_cielo)
     leitura = ler_cielo(comando.arquivo_cielo)
@@ -498,16 +537,20 @@ def _preparar_cielo(
     )
 
 
-def _preparar_quickpay(
-    comando: ReconciliationCommand, logger: logging.Logger
-) -> _PreparedOperator:
+def _preparar_quickpay(comando: ReconciliationCommand, logger: logging.Logger) -> _PreparedOperator:
     assert comando.arquivo_quickpay is not None
     hash_antes = sha256_file(comando.arquivo_quickpay)
     leitura = ler_quickpay(comando.arquivo_quickpay)
+    recebimentos = (
+        ler_recebimentos_bancarios(comando.arquivo_recebimentos_quickpay)
+        if comando.arquivo_recebimentos_quickpay is not None
+        else None
+    )
     validacao = QuickPayValidator().validar(
         leitura,
         data_inicio=comando.data_inicio,
         data_fim=comando.data_fim,
+        recebimentos_bancarios=recebimentos,
     )
     relatorio: QuickPayRelatorioProcessado | None = None
     if validacao.valido:
@@ -516,10 +559,9 @@ def _preparar_quickpay(
             validacao,
             data_inicio=comando.data_inicio,
             data_fim=comando.data_fim,
+            recebimentos_bancarios=recebimentos,
         )
-    logger.info(
-        "quickpay lida transacoes=%s valido=%s", len(leitura.transacoes), validacao.valido
-    )
+    logger.info("quickpay lida transacoes=%s valido=%s", len(leitura.transacoes), validacao.valido)
     return _PreparedOperator(
         operadora=Operadora.QUICKPAY,
         leitura=leitura,
@@ -548,6 +590,43 @@ def _categorias_necessarias(
         if item.validacao.valido:
             selected.update(item.categorias)
     return tuple(categoria for categoria in CategoriaFiltroVelo if categoria in selected)
+
+
+def _periodos_consulta_por_categoria(
+    comando: ReconciliationCommand,
+    prepared: dict[Operadora, _PreparedOperator],
+) -> dict[CategoriaFiltroVelo, tuple[date, date]]:
+    """Usa recebimento para débitos e mantém venda para as demais modalidades."""
+    padrao = (comando.data_inicio, comando.data_fim)
+    datas_debito: dict[CategoriaFiltroVelo, list[date]] = {}
+    for item in prepared.values():
+        if item.relatorio is None:
+            continue
+        transacoes = (
+            list(item.relatorio.transacoes)
+            if isinstance(item.relatorio, CieloRelatorioProcessado)
+            else _relatorio_quickpay_transacoes(item.relatorio)
+        )
+        for transacao in transacoes:
+            if transacao.modalidade is not Modalidade.DEBITO or transacao.data_recebimento is None:
+                continue
+            categoria = next(
+                (
+                    chave
+                    for chave, info in CATEGORIAS_VELO.items()
+                    if info.operadora is transacao.operadora
+                    and info.modalidade is Modalidade.DEBITO
+                ),
+                None,
+            )
+            if categoria is not None:
+                datas_debito.setdefault(categoria, []).append(transacao.data_recebimento)
+
+    periodos: dict[CategoriaFiltroVelo, tuple[date, date]] = {}
+    for categoria in _categorias_necessarias(prepared):
+        datas = datas_debito.get(categoria, [])
+        periodos[categoria] = (min(datas), max(datas)) if datas else padrao
+    return periodos
 
 
 def _categorias_transacoes(
@@ -599,6 +678,7 @@ def _registros_para(
 
 def _exportar_cielo_atomico(
     relatorio: CieloRelatorioProcessado,
+    matching: ResultadoConciliacaoOperadora,
     output_dir: Path,
     *,
     sobrescrever: bool,
@@ -619,6 +699,7 @@ def _exportar_cielo_atomico(
             relatorio,
             diretorio_saida=temp_dir,
             sobrescrever=True,
+            matching=matching,
         )
         shutil.move(str(temp_result.caminho_saida), final)
     return final

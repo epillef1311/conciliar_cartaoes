@@ -29,7 +29,11 @@ def _tx(
 ) -> TransacaoOperadora:
     return TransacaoOperadora(
         operadora=Operadora.QUICKPAY,
-        modalidade=Modalidade.CREDITO,
+        modalidade=(
+            Modalidade.DEBITO
+            if normalize_text(tipo).comparavel == "debito"
+            else Modalidade.CREDITO
+        ),
         bandeira=bandeira,
         data_venda=venda,
         hora_venda=hora,
@@ -110,7 +114,7 @@ def test_filters_period_and_counts_outside_transactions():
     assert relatorio.linhas[0].transacao.linha_original == 12
 
 
-def test_orders_by_receipt_sale_time_type_brand_and_amount_stably():
+def test_orders_by_sale_modality_brand_time_and_amount_stably():
     relatorio = _processar(
         _resultado(
             _tx(linha=14, hora=time(9, 0), bandeira="Visa", bruto=Decimal("50.00")),
@@ -122,7 +126,7 @@ def test_orders_by_receipt_sale_time_type_brand_and_amount_stably():
         date(2026, 7, 13),
     )
 
-    assert [linha.transacao.linha_original for linha in relatorio.linhas] == [12, 11, 13, 14]
+    assert [linha.transacao.linha_original for linha in relatorio.linhas] == [12, 11, 14, 13]
 
 
 def test_calculates_money_fields_and_preserves_one_cent_difference_and_bank_line():

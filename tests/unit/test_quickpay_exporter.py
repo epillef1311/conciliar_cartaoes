@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
 from openpyxl import load_workbook
 
+from conciliacao.domain.enums import Modalidade
 from conciliacao.exporters import QUICKPAY_HEADERS, QuickPayExporter
 from conciliacao.exporters.quickpay_exporter import SHEET_NAME, STATUS_PENDENTE
 from conciliacao.processors.quickpay_processor import QuickPayProcessor
@@ -37,8 +39,8 @@ def test_exports_quickpay_sheet_headers_formulas_total_and_status(tmp_path):
     try:
         worksheet = workbook[SHEET_NAME]
         assert workbook.sheetnames == [SHEET_NAME]
-        assert worksheet.max_column == 15
-        assert [worksheet.cell(2, column).value for column in range(1, 16)] == QUICKPAY_HEADERS
+        assert worksheet.max_column == 17
+        assert [worksheet.cell(2, column).value for column in range(1, 18)] == QUICKPAY_HEADERS
         assert worksheet.cell(3, 9).value == "=F3-H3"
         assert worksheet.cell(3, 10).value == "=G3-I3"
         assert worksheet.cell(3, 11).value == '=IF(F3=0,"",1-(H3/F3))'
@@ -48,11 +50,38 @@ def test_exports_quickpay_sheet_headers_formulas_total_and_status(tmp_path):
         assert worksheet.cell(5, 9).value == "=SUM(I3:I4)"
         assert worksheet.cell(5, 10).value == "=SUM(J3:J4)"
         assert worksheet.cell(5, 12).value == "=SUM(L3:L4)"
+        assert worksheet.cell(5, 13).value == "=SUM(M3:M4)"
+        assert worksheet.cell(5, 14).value == "=SUM(N3:N4)"
+        assert worksheet.cell(3, 16).value is None
+        assert worksheet.cell(3, 17).value is None
+        assert worksheet.cell(4, 16).value == "=SUM(F3:F4)"
+        assert worksheet.cell(4, 17).value == "=SUM(H3:H4)"
         assert worksheet.cell(3, 13).value is None
         assert worksheet.cell(3, 14).value is None
         assert worksheet.cell(3, 15).value == STATUS_PENDENTE
         assert result.total_row == 5
         assert result.ultima_linha_transacao == 4
+    finally:
+        workbook.close()
+
+
+def test_export_organizes_by_brand_and_uses_cielo_colors(tmp_path):
+    relatorio = _relatorio_fixture()
+    debit_line = replace(
+        relatorio.linhas[0],
+        transacao=relatorio.linhas[0].transacao.model_copy(
+            update={"modalidade": Modalidade.DEBITO}
+        ),
+    )
+    relatorio_com_debito = replace(relatorio, linhas=(debit_line, relatorio.linhas[1]))
+
+    result = QuickPayExporter().exportar(relatorio_com_debito, diretorio_saida=tmp_path)
+
+    workbook = load_workbook(result.caminho_saida, data_only=False)
+    try:
+        worksheet = workbook[SHEET_NAME]
+        assert worksheet.cell(3, 1).fill.fgColor.rgb == "FF33CCCC"
+        assert worksheet.cell(4, 1).fill.fgColor.rgb == "FFC0C0C0"
     finally:
         workbook.close()
 

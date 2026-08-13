@@ -87,7 +87,9 @@ def test_generates_local_cielo_report_structurally_compatible_with_leo(tmp_path)
         assert relatorio.resumo.transacoes_incluidas == 52
         assert exportacao.ultima_linha_transacao == 54
         assert exportacao.total_row == 55
-        assert exportacao.subtotal_rows == (13, 21, 54)
+        assert exportacao.subtotal_rows == tuple(
+            3 + bloco.fim_indice for bloco in relatorio.blocos if bloco.tipo == "CARTAO"
+        )
         assert ws["G55"].value == "=SUM(G3:G54)"
         assert ws["H55"].value == "=SUM(H3:H54)"
         assert ws["I55"].value == "=SUM(I3:I54)"
@@ -207,7 +209,7 @@ def test_generates_local_quickpay_report_from_temporary_prepared_copy(tmp_path):
     try:
         ws = workbook["Conciliação"]
         assert workbook.sheetnames == ["Conciliação"]
-        assert [ws.cell(2, column).value for column in range(1, 16)] == QUICKPAY_HEADERS
+        assert [ws.cell(2, column).value for column in range(1, 18)] == QUICKPAY_HEADERS
         assert relatorio.resumo.transacoes_incluidas == 2
         assert relatorio.resumo.total_bruto == Decimal("320.83")
         assert relatorio.resumo.total_taxa == Decimal("12.72")

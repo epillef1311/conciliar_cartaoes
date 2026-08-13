@@ -124,16 +124,22 @@ def test_orders_credit_debit_and_pix_after_cards():
     )
 
     assert [transaction.linha_original for transaction in result.transacoes] == [11, 12, 13]
-    assert result.resumo.blocos_cartao == 1
+    assert result.resumo.blocos_cartao == 2
     assert result.resumo.blocos_pix == 1
     assert result.blocos[-1].tipo == "PIX"
 
 
-def test_creates_dynamic_card_blocks_by_payment_date_and_one_pix_block():
+def test_creates_card_blocks_by_sale_date_and_modality_and_one_pix_block():
     result = _processar(
         _resultado(
             _tx(linha=11, pagamento=date(2026, 7, 14)),
-            _tx(linha=12, pagamento=date(2026, 7, 15)),
+            _tx(
+                linha=12,
+                pagamento=date(2026, 7, 15),
+                modalidade=Modalidade.DEBITO,
+                tipo="Venda debito",
+                forma="Debito a vista",
+            ),
             _tx(
                 linha=13,
                 pagamento=date(2026, 7, 14),

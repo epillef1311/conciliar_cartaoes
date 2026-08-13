@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from conciliacao.cli import main
 
 
@@ -184,11 +187,13 @@ def test_processar_modo_simulado_com_cielo_usa_fixtures(tmp_path, capsys):
             "2026-07-13",
             "--data-fim",
             "2026-07-13",
-            "--arquivo-cielo",
-            "tests/fixtures/cielo/cielo_valido.xlsx",
-            "--saida",
-            str(tmp_path),
-            "--salvar-auditoria",
+                "--arquivo-cielo",
+                "tests/fixtures/cielo/cielo_valido.xlsx",
+                "--saida",
+                str(tmp_path),
+                "--diretorio-planilhas",
+                str(tmp_path / "planilhas"),
+                "--salvar-auditoria",
         ]
     )
 
@@ -196,7 +201,13 @@ def test_processar_modo_simulado_com_cielo_usa_fixtures(tmp_path, capsys):
     assert exit_code == 0
     assert "CONCILIACAO FINALIZADA COM SUCESSO" in captured.out
     assert "Chamadas reais realizadas: 0" in captured.out
-    assert (tmp_path / "cielo" / "CIELO_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx").exists()
+    assert (
+        tmp_path
+        / "planilhas"
+        / datetime.now(ZoneInfo("America/Sao_Paulo")).date().isoformat()
+        / "cielo"
+        / "CIELO_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx"
+    ).exists()
 
 
 def test_testar_matching_cielo_and_quickpay_use_local_fixtures(capsys):

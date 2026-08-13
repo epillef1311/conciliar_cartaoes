@@ -16,12 +16,18 @@ from conciliacao.integrations.velo.categories import CategoriaFiltroVelo
 from conciliacao.integrations.velo.client import VeloClient
 from conciliacao.integrations.velo.config import load_velo_api_config
 from conciliacao.integrations.velo.exceptions import VeloApiError
+from conciliacao.integrations.velo.manual_login import ManualLoginTokenProvider
 from conciliacao.integrations.velo.service import ResultadoConsultaVelo, VeloIntegrationService
 from conciliacao.integrations.velo.testing import FixtureVeloTransport
 from conciliacao.matching import ReconciliationService, formatar_resultado_matching
 from conciliacao.processors import CieloProcessor, QuickPayProcessor
 from conciliacao.processors.cielo_processor import CieloProcessingError
 from conciliacao.processors.quickpay_processor import QuickPayProcessingError
+from conciliacao.quickpay.recebimentos_bancarios import (
+    criar_planilha_recebimentos_bancarios,
+    ler_recebimentos_bancarios,
+    parse_recebimento_chat,
+)
 from conciliacao.readers.cielo_reader import ler_cielo
 from conciliacao.readers.quickpay_reader import ler_quickpay
 from conciliacao.validators import (
@@ -66,7 +72,15 @@ def build_parser() -> argparse.ArgumentParser:
     processar.add_argument("--data-fim", required=True, type=_date_value)
     processar.add_argument("--arquivo-cielo", required=False, type=Path)
     processar.add_argument("--arquivo-quickpay", required=False, type=Path)
+    processar.add_argument("--arquivo-recebimentos-quickpay", required=False, type=Path)
     processar.add_argument("--saida", required=False, type=Path, default=Path("output"))
+    processar.add_argument(
+        "--diretorio-planilhas",
+        required=False,
+        type=Path,
+        default=Path("planilhas"),
+        help="Diretorio-raiz dos Excel finais; cada execucao cria <data>/cielo e <data>/quickpay.",
+    )
     processar.add_argument("--sobrescrever", action="store_true")
     processar.add_argument("--modo-simulado", action="store_true")
     processar.add_argument("--fixtures-api", required=False, type=Path)
@@ -89,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Valida somente um arquivo QuickPay. Nao gera Excel nem consulta API.",
     )
     validar_quickpay.add_argument("--arquivo", required=True, type=Path)
+    validar_quickpay.add_argument("--arquivo-recebimentos-quickpay", required=False, type=Path)
     _add_period_args(validar_quickpay)
 
     validar = subparsers.add_parser(
@@ -118,6 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Gera somente o relatorio QuickPay. Nao consulta API.",
     )
     gerar_quickpay.add_argument("--arquivo", required=True, type=Path)
+    gerar_quickpay.add_argument("--arquivo-recebimentos-quickpay", required=False, type=Path)
     gerar_quickpay.add_argument("--data-inicio", required=True, type=_date_value)
     gerar_quickpay.add_argument("--data-fim", required=True, type=_date_value)
     gerar_quickpay.add_argument("--saida", required=True, type=Path)
@@ -125,6 +141,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--sobrescrever",
         action="store_true",
         help="Permite sobrescrever o arquivo de saida quando ele ja existir.",
+    )
+
+    gerar_recebimentos = subparsers.add_parser(
+        "gerar-recebimentos-quickpay",
+        help="Gera a planilha auxiliar QuickPay a partir dos valores confirmados no chat.",
+    )
+    gerar_recebimentos.add_argument("--saida", required=True, type=Path)
+    gerar_recebimentos.add_argument(
+        "--nome-arquivo", default="RECEBIMENTOS_BANCARIOS_QUICKPAY.xlsx"
+    )
+    gerar_recebimentos.add_argument(
+        "--recebimento",
+        action="append",
+        required=True,
+        help="Use data|bandeira|modalidade|valor; repita para cada grupo.",
     )
 
     testar_velo = subparsers.add_parser(
@@ -173,22 +204,29 @@ def _processar(args: argparse.Namespace) -> int:
         print("Argumentos validos. Nenhum processamento foi executado.")
         return 0
 
+    token_provider: ManualLoginTokenProvider | None = None
     try:
         comando = ReconciliationCommand(
             data_inicio=args.data_inicio,
             data_fim=args.data_fim,
             arquivo_cielo=args.arquivo_cielo,
             arquivo_quickpay=args.arquivo_quickpay,
+            arquivo_recebimentos_quickpay=args.arquivo_recebimentos_quickpay,
             diretorio_saida=args.saida,
+            diretorio_planilhas=args.diretorio_planilhas,
             sobrescrever=bool(args.sobrescrever),
             modo_simulado=bool(args.modo_simulado),
             diretorio_fixtures_api=args.fixtures_api,
             salvar_auditoria=True if args.salvar_auditoria else None,
         )
-        resultado = ReconciliationWorkflow().executar(comando)
+        token_provider = None if args.modo_simulado else ManualLoginTokenProvider()
+        resultado = ReconciliationWorkflow(token_provider=token_provider).executar(comando)
     except ValueError as exc:
         print(f"Erro: {exc}")
         return 1
+    finally:
+        if token_provider is not None:
+            token_provider.clear()
 
     print(formatar_resumo_workflow(resultado))
     if resultado.modo.value == "SIMULADO":
@@ -223,6 +261,7 @@ def _validar_quickpay(args: argparse.Namespace) -> int:
             args.arquivo,
             data_inicio=args.data_inicio,
             data_fim=args.data_fim,
+            arquivo_recebimentos_bancarios=args.arquivo_recebimentos_quickpay,
         )
     except PeriodoSolicitadoInvalido as exc:
         print(f"Erro: {exc}")
@@ -311,10 +350,16 @@ def _gerar_quickpay(args: argparse.Namespace) -> int:
         return 2
     try:
         leitura = ler_quickpay(args.arquivo)
+        recebimentos = (
+            ler_recebimentos_bancarios(args.arquivo_recebimentos_quickpay)
+            if args.arquivo_recebimentos_quickpay is not None
+            else None
+        )
         validacao = QuickPayValidator().validar(
             leitura,
             data_inicio=args.data_inicio,
             data_fim=args.data_fim,
+            recebimentos_bancarios=recebimentos,
         )
         if not validacao.valido:
             print(formatar_resumo_validacao(validacao))
@@ -324,6 +369,7 @@ def _gerar_quickpay(args: argparse.Namespace) -> int:
             validacao,
             data_inicio=args.data_inicio,
             data_fim=args.data_fim,
+            recebimentos_bancarios=recebimentos,
         )
         exportacao = QuickPayExporter().exportar(
             relatorio,
@@ -359,6 +405,21 @@ def _gerar_quickpay(args: argparse.Namespace) -> int:
                 f"Validacao da saida: {'OK' if exportacao.validacao_saida_ok else 'FALHA'}",
             ]
         )
+    )
+    return 0
+
+
+def _gerar_recebimentos_quickpay(args: argparse.Namespace) -> int:
+    try:
+        recebimentos = [parse_recebimento_chat(item) for item in args.recebimento]
+        caminho = criar_planilha_recebimentos_bancarios(
+            recebimentos, diretorio_saida=args.saida, nome_arquivo=args.nome_arquivo
+        )
+    except (ValueError, OSError) as exc:
+        print(f"Erro ao gerar planilha de recebimentos QuickPay: {exc}")
+        return 1
+    print(
+        f"PLANILHA DE RECEBIMENTOS QUICKPAY GERADA\nArquivo: {caminho}\nGrupos: {len(recebimentos)}"
     )
     return 0
 
@@ -537,6 +598,8 @@ def main(argv: list[str] | None = None) -> int:
         return _gerar_cielo(args)
     if args.command == "gerar-quickpay":
         return _gerar_quickpay(args)
+    if args.command == "gerar-recebimentos-quickpay":
+        return _gerar_recebimentos_quickpay(args)
     if args.command == "testar-integracao-velo":
         return _testar_integracao_velo(args)
     if args.command == "testar-matching":

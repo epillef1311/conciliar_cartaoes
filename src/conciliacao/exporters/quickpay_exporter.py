@@ -1,7 +1,7 @@
 """Exportador Excel do relatorio QuickPay sem API e sem matching."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
@@ -11,9 +11,10 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from conciliacao.domain.enums import StatusConciliacao
+from conciliacao.domain.enums import Modalidade, StatusConciliacao
 from conciliacao.matching.models import ResultadoConciliacaoOperadora, ResultadoIndividualMatching
 from conciliacao.processors.quickpay_processor import (
+    QuickPayGrupoBancario,
     QuickPayLinhaProcessada,
     QuickPayRelatorioProcessado,
 )
@@ -35,10 +36,13 @@ QUICKPAY_HEADERS = [
     "Sistema",
     "Diferença Sistema",
     "Status",
+    "Soma Valor da Venda",
+    "Soma Valor Líquido",
 ]
 
 STATUS_PENDENTE = "PENDENTE DE CONCILIAÇÃO COM SISTEMA"
 SHEET_NAME = "Conciliação"
+BANK_SHEET_NAME = "Conciliação Bancária"
 STATUS_LABELS = {
     StatusConciliacao.CONCILIADO: "CONCILIADO",
     StatusConciliacao.DIVERGENCIA_DE_VALOR: "DIVERGENCIA DE VALOR",
@@ -48,7 +52,7 @@ STATUS_LABELS = {
     StatusConciliacao.CORRESPONDENCIA_AMBIGUA: "CORRESPONDENCIA AMBIGUA",
     StatusConciliacao.PENDENTE_DE_DADOS: "PENDENTE DE DADOS",
 }
-MONEY_FORMAT = r'\R\$\ * #,##0.00;[Red]\-\R\$\ * #,##0.00'
+MONEY_FORMAT = r"\R\$\ * #,##0.00;[Red]\-\R\$\ * #,##0.00"
 PERCENT_FORMAT = "0.00%"
 DATE_FORMAT = "dd/mm/yyyy"
 TIME_FORMAT = "hh:mm"
@@ -59,6 +63,7 @@ class QuickPayExportResult:
     caminho_saida: Path
     total_row: int
     ultima_linha_transacao: int
+    subtotal_rows: tuple[int, ...]
     validacao_saida_ok: bool
 
 
@@ -74,8 +79,7 @@ class QuickPayExporter:
         output_dir = Path(diretorio_saida)
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = _resolver_saida(
-            output_dir
-            / f"QUICKPAY_CONCILIACAO_{relatorio.data_inicio.isoformat()}_A_"
+            output_dir / f"QUICKPAY_CONCILIACAO_{relatorio.data_inicio.isoformat()}_A_"
             f"{relatorio.data_fim.isoformat()}.xlsx",
             sobrescrever=sobrescrever,
         )
@@ -86,6 +90,10 @@ class QuickPayExporter:
             raise ValueError("nao foi possivel criar a aba Conciliação")
         worksheet.title = SHEET_NAME
         _escrever_planilha(worksheet, relatorio, matching=matching)
+        if relatorio.grupos_bancarios:
+            _escrever_conciliacao_bancaria(
+                workbook.create_sheet(BANK_SHEET_NAME), relatorio.grupos_bancarios
+            )
         workbook.save(output_path)
         workbook.close()
 
@@ -93,6 +101,7 @@ class QuickPayExporter:
             caminho_saida=output_path,
             total_row=3 + len(relatorio.linhas),
             ultima_linha_transacao=2 + len(relatorio.linhas),
+            subtotal_rows=_linhas_subtotal_bloco(relatorio),
             validacao_saida_ok=False,
         )
         _validar_exportacao(output_path, relatorio, result, matching=matching)
@@ -100,6 +109,7 @@ class QuickPayExporter:
             caminho_saida=result.caminho_saida,
             total_row=result.total_row,
             ultima_linha_transacao=result.ultima_linha_transacao,
+            subtotal_rows=result.subtotal_rows,
             validacao_saida_ok=True,
         )
 
@@ -130,6 +140,7 @@ def _escrever_planilha(
             linha,
             matching_por_linha.get(linha.transacao.linha_original),
         )
+    _escrever_subtotais_bloco(worksheet, relatorio)
     _escrever_total_geral(worksheet, relatorio)
     _aplicar_estilo(worksheet, relatorio, 3 + len(relatorio.linhas))
 
@@ -154,7 +165,9 @@ def _escrever_linha(
         f"=F{row}-H{row}",
         f"=G{row}-I{row}",
         f'=IF(F{row}=0,"",1-(H{row}/F{row}))',
-        linha.recebido_banco,
+        linha.recebido_banco
+        if linha.recebido_banco is not None
+        else "VER ABA CONCILIAÇÃO BANCÁRIA",
         sistema,
         diferenca_sistema,
         status,
@@ -167,9 +180,64 @@ def _escrever_total_geral(worksheet: Worksheet, relatorio: QuickPayRelatorioProc
     total_row = 3 + len(relatorio.linhas)
     last_transaction = total_row - 1
     worksheet.cell(total_row, 5, "TOTAL")
-    for column in (6, 7, 8, 9, 10, 12):
+    for column in (6, 7, 8, 9, 10, 13, 14):
         letter = get_column_letter(column)
         worksheet.cell(total_row, column, f"=SUM({letter}3:{letter}{last_transaction})")
+    worksheet.cell(
+        total_row,
+        12,
+        f"=SUM('{BANK_SHEET_NAME}'!F3:F{2 + len(relatorio.grupos_bancarios)})"
+        if relatorio.grupos_bancarios
+        else f"=SUM(L3:L{last_transaction})",
+    )
+
+
+def _escrever_conciliacao_bancaria(
+    worksheet: Worksheet, grupos: tuple[QuickPayGrupoBancario, ...]
+) -> None:
+    headers = [
+        "Data de recebimento",
+        "Bandeira",
+        "Modalidade",
+        "Transações",
+        "Líquido QuickPay",
+        "Recebido no banco",
+        "Diferença",
+        "Status",
+    ]
+    worksheet.append(["COMPARAÇÃO DOS RECEBIMENTOS BANCÁRIOS QUICKPAY"])
+    worksheet.merge_cells("A1:H1")
+    worksheet.append(headers)
+    for grupo in grupos:
+        worksheet.append(
+            [
+                grupo.data_recebimento,
+                grupo.bandeira,
+                grupo.modalidade.value.title(),
+                grupo.quantidade_transacoes,
+                grupo.total_liquido_quickpay,
+                grupo.valor_recebido_banco,
+                grupo.diferenca_banco,
+                grupo.status,
+            ]
+        )
+    for cell in worksheet[1]:
+        cell.font = Font(bold=True, size=12)
+    for cell in worksheet[2]:
+        cell.fill = _yellow_fill()
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        cell.border = _thin_border()
+    for row in range(3, worksheet.max_row + 1):
+        worksheet.cell(row, 1).number_format = DATE_FORMAT
+        for col in (5, 6, 7):
+            worksheet.cell(row, col).number_format = MONEY_FORMAT
+        for col in range(1, 9):
+            worksheet.cell(row, col).border = _thin_border()
+    widths = {"A": 20, "B": 18, "C": 16, "D": 14, "E": 20, "F": 21, "G": 16, "H": 22}
+    for column_letter, width in widths.items():
+        worksheet.column_dimensions[column_letter].width = width
+    worksheet.freeze_panes = "A3"
 
 
 def _aplicar_estilo(
@@ -195,6 +263,8 @@ def _aplicar_estilo(
         "M": 15,
         "N": 18,
         "O": 34,
+        "P": 20,
+        "Q": 20,
     }
     for column_letter, width in widths.items():
         worksheet.column_dimensions[column_letter].width = width
@@ -209,22 +279,18 @@ def _aplicar_estilo(
     for row_number in range(3, total_row + 1):
         worksheet.cell(row_number, 1).number_format = DATE_FORMAT
         worksheet.cell(row_number, 2).number_format = DATE_FORMAT
-        for numeric_column in (6, 7, 8, 9, 10, 12, 14):
+        for numeric_column in (6, 7, 8, 9, 10, 12, 13, 14, 16, 17):
             worksheet.cell(row_number, numeric_column).number_format = MONEY_FORMAT
         worksheet.cell(row_number, 11).number_format = PERCENT_FORMAT
 
-    for row_number, linha in enumerate(relatorio.linhas, start=3):
-        if linha.diferenca_taxa != Decimal("0.00"):
-            worksheet.cell(row_number, 10).fill = _warning_fill()
-        if linha.transacao.valor_bruto == Decimal("0.00"):
-            worksheet.cell(row_number, 11).fill = _warning_fill()
+    _aplicar_cores_linhas(worksheet, relatorio)
 
-    for total_column in (5, 6, 7, 8, 9, 10, 12):
+    for total_column in (5, 6, 7, 8, 9, 10, 12, 13, 14):
         worksheet.cell(total_row, total_column).font = Font(bold=True)
         worksheet.cell(total_row, total_column).border = _total_border()
 
     worksheet.freeze_panes = "A3"
-    worksheet.auto_filter.ref = f"A2:O{total_row}"
+    worksheet.auto_filter.ref = f"A2:Q{total_row}"
 
 
 def _validar_exportacao(
@@ -236,18 +302,23 @@ def _validar_exportacao(
 ) -> None:
     workbook = load_workbook(path, read_only=False, data_only=False)
     try:
-        if workbook.sheetnames != [SHEET_NAME]:
-            raise ValueError("arquivo QuickPay gerado deve conter somente a aba Conciliação")
+        expected_sheets = (
+            [SHEET_NAME, BANK_SHEET_NAME] if relatorio.grupos_bancarios else [SHEET_NAME]
+        )
+        if workbook.sheetnames != expected_sheets:
+            raise ValueError("abas QuickPay geradas nao coincidem com o modo de conciliacao")
         worksheet = workbook[SHEET_NAME]
-        headers = [worksheet.cell(2, column).value for column in range(1, 16)]
+        headers = [worksheet.cell(2, column).value for column in range(1, 18)]
         if headers != QUICKPAY_HEADERS:
             raise ValueError("cabecalhos QuickPay gerados nao coincidem com o layout final")
-        if worksheet.max_column != 15:
-            raise ValueError("arquivo QuickPay gerado deve conter exatamente 15 colunas")
+        if worksheet.max_column != 17:
+            raise ValueError("arquivo QuickPay gerado deve conter exatamente 17 colunas")
         if result.ultima_linha_transacao != 2 + len(relatorio.linhas):
             raise ValueError("quantidade de transacoes QuickPay exportadas invalida")
         _validar_formulas(worksheet, relatorio, result)
         _validar_valores(worksheet, relatorio, result, matching=matching)
+        if relatorio.grupos_bancarios:
+            _validar_conciliacao_bancaria(workbook[BANK_SHEET_NAME], relatorio)
         _validar_erros_formula(worksheet)
     finally:
         workbook.close()
@@ -268,11 +339,20 @@ def _validar_formulas(
 
     total = result.total_row
     last = result.ultima_linha_transacao
-    for column in (6, 7, 8, 9, 10, 12):
+    for column in (6, 7, 8, 9, 10, 13, 14):
         letter = get_column_letter(column)
         expected_total = f"=SUM({letter}3:{letter}{last})"
         if worksheet.cell(total, column).value != expected_total:
             raise ValueError(f"formula total QuickPay invalida em {letter}{total}")
+    expected_bank = (
+        f"=SUM('{BANK_SHEET_NAME}'!F3:F{2 + len(relatorio.grupos_bancarios)})"
+        if relatorio.grupos_bancarios
+        else f"=SUM(L3:L{last})"
+    )
+    if worksheet.cell(total, 12).value != expected_bank:
+        raise ValueError(f"formula total QuickPay invalida em L{total}")
+    _validar_subtotais_bloco(worksheet, relatorio, result)
+    _validar_cores_linhas(worksheet, relatorio)
 
 
 def _validar_valores(
@@ -291,8 +371,12 @@ def _validar_valores(
         bruto += Decimal(str(worksheet.cell(row, 6).value))
         taxa += Decimal(str(worksheet.cell(row, 7).value))
         liquido += Decimal(str(worksheet.cell(row, 8).value))
-        recebido += Decimal(str(worksheet.cell(row, 12).value))
-        if Decimal(str(worksheet.cell(row, 12).value)) != linha.recebido_banco:
+        if linha.recebido_banco is not None:
+            recebido += Decimal(str(worksheet.cell(row, 12).value))
+        if (
+            linha.recebido_banco is not None
+            and Decimal(str(worksheet.cell(row, 12).value)) != linha.recebido_banco
+        ):
             raise ValueError(f"valor recebido QuickPay nao preservado na linha {row}")
         expected = _campos_sistema(
             linha.transacao.valor_bruto,
@@ -313,8 +397,29 @@ def _validar_valores(
         raise ValueError("total taxa QuickPay exportado diverge do processamento")
     if quantize_money(liquido) != relatorio.resumo.total_liquido:
         raise ValueError("total liquido QuickPay exportado diverge do processamento")
-    if quantize_money(recebido) != relatorio.resumo.total_recebido_banco:
+    if (
+        not relatorio.grupos_bancarios
+        and quantize_money(recebido) != relatorio.resumo.total_recebido_banco
+    ):
         raise ValueError("total recebido no banco QuickPay diverge do processamento")
+
+
+def _validar_conciliacao_bancaria(
+    worksheet: Worksheet, relatorio: QuickPayRelatorioProcessado
+) -> None:
+    if worksheet.max_row != 2 + len(relatorio.grupos_bancarios):
+        raise ValueError("quantidade de grupos bancarios QuickPay invalida")
+    total_banco = Decimal("0.00")
+    for row, grupo in enumerate(relatorio.grupos_bancarios, start=3):
+        if (
+            _money_cell(worksheet.cell(row, 5).value) != grupo.total_liquido_quickpay
+            or _money_cell(worksheet.cell(row, 6).value) != grupo.valor_recebido_banco
+            or _money_cell(worksheet.cell(row, 7).value) != grupo.diferenca_banco
+        ):
+            raise ValueError(f"comparacao bancaria QuickPay invalida na linha {row}")
+        total_banco += grupo.valor_recebido_banco
+    if quantize_money(total_banco) != relatorio.resumo.total_recebido_banco:
+        raise ValueError("total bancario QuickPay diverge do processamento")
 
 
 def _validar_erros_formula(worksheet: Worksheet) -> None:
@@ -353,11 +458,10 @@ def _campos_sistema(
     if matching is None:
         return None, None, STATUS_PENDENTE
     status = STATUS_LABELS[matching.status]
-    if (
-        matching.registro_sistema is not None
-        and matching.status
-        in {StatusConciliacao.CONCILIADO, StatusConciliacao.DIVERGENCIA_DE_VALOR}
-    ):
+    if matching.registro_sistema is not None and matching.status in {
+        StatusConciliacao.CONCILIADO,
+        StatusConciliacao.DIVERGENCIA_DE_VALOR,
+    }:
         sistema = matching.registro_sistema.valor
         return sistema, quantize_money(valor_operadora - sistema), status
     return None, None, status
@@ -369,12 +473,121 @@ def _money_cell(value: object) -> Decimal | None:
     return quantize_money(Decimal(str(value)))
 
 
+def _blocos_subtotal(relatorio: QuickPayRelatorioProcessado) -> tuple[tuple[int, int], ...]:
+    """Repete os blocos Cielo: data da venda e modalidade de pagamento."""
+    blocos: list[tuple[int, int]] = []
+    inicio = 3
+    chave_atual: tuple[date, Modalidade | None] | None = None
+    for row, linha in enumerate(relatorio.linhas, start=3):
+        chave = (linha.transacao.data_venda, linha.transacao.modalidade)
+        if chave_atual is None:
+            chave_atual = chave
+            inicio = row
+        elif chave != chave_atual:
+            blocos.append((inicio, row - 1))
+            inicio = row
+            chave_atual = chave
+    if chave_atual is not None:
+        blocos.append((inicio, 2 + len(relatorio.linhas)))
+    return tuple(blocos)
+
+
+def _linhas_subtotal_bloco(relatorio: QuickPayRelatorioProcessado) -> tuple[int, ...]:
+    return tuple(end for _, end in _blocos_subtotal(relatorio))
+
+
+def _escrever_subtotais_bloco(
+    worksheet: Worksheet, relatorio: QuickPayRelatorioProcessado
+) -> None:
+    for start_row, end_row in _blocos_subtotal(relatorio):
+        worksheet.cell(end_row, 16, _formula_subtotal_bloco(start_row, end_row, "F"))
+        worksheet.cell(end_row, 17, _formula_subtotal_bloco(start_row, end_row, "H"))
+
+
+def _validar_subtotais_bloco(
+    worksheet: Worksheet,
+    relatorio: QuickPayRelatorioProcessado,
+    result: QuickPayExportResult,
+) -> None:
+    expected_blocks = {end: start for start, end in _blocos_subtotal(relatorio)}
+    if tuple(sorted(expected_blocks)) != result.subtotal_rows:
+        raise ValueError("linhas de subtotal QuickPay nao coincidem com os blocos")
+    last = result.ultima_linha_transacao
+    for row in range(3, last + 1):
+        start = expected_blocks.get(row)
+        if start is None:
+            values = (worksheet.cell(row, 16).value, worksheet.cell(row, 17).value)
+            if any(value is not None for value in values):
+                raise ValueError(f"subtotal QuickPay inesperado na linha {row}")
+            continue
+        expected = {
+            16: _formula_subtotal_bloco(start, row, "F"),
+            17: _formula_subtotal_bloco(start, row, "H"),
+        }
+        for column, formula in expected.items():
+            if worksheet.cell(row, column).value != formula:
+                raise ValueError(
+                    f"subtotal QuickPay invalido em {get_column_letter(column)}{row}"
+                )
+
+
+def _formula_subtotal_bloco(start_row: int, end_row: int, value_column: str) -> str:
+    return f"=SUM({value_column}{start_row}:{value_column}{end_row})"
+
+
+def _aplicar_cores_linhas(worksheet: Worksheet, relatorio: QuickPayRelatorioProcessado) -> None:
+    """Aplica à QuickPay as cores por modalidade usadas no layout Cielo."""
+    dias_credito = {
+        dia: indice
+        for indice, dia in enumerate(
+            sorted(
+                {
+                    linha.transacao.data_venda
+                    for linha in relatorio.linhas
+                    if linha.transacao.modalidade is Modalidade.CREDITO
+                }
+            )
+        )
+    }
+    for row, linha in enumerate(relatorio.linhas, start=3):
+        color = _cor_linha_quickpay(linha, dias_credito)
+        fill = PatternFill(fill_type="solid", fgColor=f"FF{color}")
+        for column in range(1, len(QUICKPAY_HEADERS) + 1):
+            worksheet.cell(row, column).fill = fill
+
+
+def _validar_cores_linhas(worksheet: Worksheet, relatorio: QuickPayRelatorioProcessado) -> None:
+    dias_credito = {
+        dia: indice
+        for indice, dia in enumerate(
+            sorted(
+                {
+                    linha.transacao.data_venda
+                    for linha in relatorio.linhas
+                    if linha.transacao.modalidade is Modalidade.CREDITO
+                }
+            )
+        )
+    }
+    for row, linha in enumerate(relatorio.linhas, start=3):
+        expected = f"FF{_cor_linha_quickpay(linha, dias_credito)}"
+        if worksheet.cell(row, 1).fill.fgColor.rgb != expected:
+            raise ValueError(f"cor da linha QuickPay invalida na linha {row}")
+
+
+def _cor_linha_quickpay(
+    linha: QuickPayLinhaProcessada, dias_credito: dict[date, int]
+) -> str:
+    modalidade = linha.transacao.modalidade
+    if modalidade is Modalidade.PIX:
+        return "FFFF99"
+    if modalidade is Modalidade.DEBITO:
+        return "33CCCC"
+    return "C0C0C0" if dias_credito[linha.transacao.data_venda] % 2 == 0 else "FFFFFF"
+
+
 def _yellow_fill() -> PatternFill:
     return PatternFill(fill_type="solid", fgColor="FFFFC000")
-
-
-def _warning_fill() -> PatternFill:
-    return PatternFill(fill_type="solid", fgColor="FFFFF2CC")
 
 
 def _thin_border() -> Border:

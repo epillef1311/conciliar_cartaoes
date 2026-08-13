@@ -213,13 +213,16 @@ def _criar_transacao(
         coluna=indices["data_recebimento"],
         cabecalho="Data de recebimento",
     )
-    parcelas = _parcelas(
-        valor_obrigatorio(
-            values, indices, "numero_parcelas", arquivo=arquivo, aba=aba, linha=row_number
-        ),
-        arquivo=arquivo,
-        aba=aba,
-        linha=row_number,
+    parcelas_value = valor_opcional(values, indices["numero_parcelas"])
+    parcelas = (
+        None
+        if parcelas_value is None
+        else _parcelas(
+            parcelas_value,
+            arquivo=arquivo,
+            aba=aba,
+            linha=row_number,
+        )
     )
     bruto = converter_moeda(
         valor_obrigatorio(

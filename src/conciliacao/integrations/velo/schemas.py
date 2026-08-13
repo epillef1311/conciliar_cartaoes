@@ -46,7 +46,7 @@ class FormaRecebimentoApi(VeloApiModel):
 class RegistroConciliacaoApi(VeloApiModel):
     eleva_usuario_id: int | str | None = Field(default=None, alias="elevaUsuarioId")
     eleva_empresa_id: int | str | None = Field(default=None, alias="elevaEmpresaId")
-    acao: str | None = None
+    acao: str | int | None = None
     forcar_acao: bool | str | None = Field(default=None, alias="forcarAcao")
     total_registros: int | None = Field(default=None, alias="totalRegistros")
     conta_pacote_pagamento_unico_id: str | int = Field(alias="contaPacotePagamentoUnicoId")

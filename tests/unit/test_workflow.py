@@ -1,30 +1,45 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
+from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 from openpyxl import load_workbook
 from pydantic import ValidationError
 
+from conciliacao.domain.enums import Modalidade, Operadora
 from conciliacao.exporters.quickpay_exporter import SHEET_NAME
+from conciliacao.integrations.velo.authentication import StaticTokenProvider
+from conciliacao.integrations.velo.categories import CategoriaFiltroVelo
 from conciliacao.integrations.velo.testing import FakeVeloTransport, text_response
+from conciliacao.processors.quickpay_processor import QuickPayProcessor
+from conciliacao.readers.quickpay_reader import ler_quickpay
+from conciliacao.validators.models import ResultadoValidacao
+from conciliacao.validators.quickpay_validator import QuickPayValidator
 from conciliacao.workflow import (
     ReconciliationCommand,
     ReconciliationWorkflow,
     WorkflowMode,
     WorkflowStatus,
+    _periodos_consulta_por_categoria,
+    _PreparedOperator,
 )
 
 
 def test_workflow_simulado_processa_ambas_operadoras_e_preenche_quickpay(tmp_path):
     api_dir = _api_fixtures(tmp_path)
     output_dir = tmp_path / "output"
+    spreadsheets_dir = tmp_path / "planilhas"
     command = ReconciliationCommand(
         data_inicio="2026-07-13",
         data_fim="2026-07-13",
         arquivo_cielo=Path("tests/fixtures/cielo/cielo_valido.xlsx"),
         arquivo_quickpay=Path("tests/fixtures/quickpay/quickpay_valido.xlsx"),
         diretorio_saida=output_dir,
+        diretorio_planilhas=spreadsheets_dir,
         modo_simulado=True,
         diretorio_fixtures_api=api_dir,
         salvar_auditoria=True,
@@ -46,8 +61,20 @@ def test_workflow_simulado_processa_ambas_operadoras_e_preenche_quickpay(tmp_pat
     assert result.resultado_quickpay.arquivo_saida is not None
     assert result.resultado_cielo.arquivo_saida.exists()
     assert result.resultado_quickpay.arquivo_saida.exists()
+    expected_spreadsheet_dir = spreadsheets_dir / result.inicio_execucao.date().isoformat()
+    assert result.resultado_cielo.arquivo_saida.parent == expected_spreadsheet_dir / "cielo"
+    assert result.resultado_quickpay.arquivo_saida.parent == expected_spreadsheet_dir / "quickpay"
     assert (output_dir / "execucoes" / command.identificador_execucao / "resumo.json").exists()
     assert (Path("data/api_raw") / command.identificador_execucao / "metadata.json").exists()
+
+    cielo_workbook = load_workbook(result.resultado_cielo.arquivo_saida, data_only=False)
+    try:
+        comparison = cielo_workbook["Conciliação Velo"]
+        assert cielo_workbook.sheetnames == ["Planilha1", "Conciliação Velo"]
+        assert comparison.cell(5, 3).value == 2
+        assert comparison.cell(8, 8).value == "CONCILIADO"
+    finally:
+        cielo_workbook.close()
 
     workbook = load_workbook(result.resultado_quickpay.arquivo_saida, data_only=False)
     try:
@@ -73,6 +100,7 @@ def test_workflow_somente_cielo_nao_exige_quickpay(tmp_path):
         data_fim="2026-07-13",
         arquivo_cielo=Path("tests/fixtures/cielo/cielo_valido.xlsx"),
         diretorio_saida=tmp_path / "output",
+        diretorio_planilhas=tmp_path / "planilhas",
         modo_simulado=True,
         diretorio_fixtures_api=_api_fixtures(tmp_path),
         salvar_auditoria=False,
@@ -95,6 +123,7 @@ def test_workflow_quickpay_invalida_nao_bloqueia_cielo(tmp_path):
         arquivo_cielo=Path("tests/fixtures/cielo/cielo_valido.xlsx"),
         arquivo_quickpay=Path("tests/fixtures/quickpay/quickpay_html.xls"),
         diretorio_saida=tmp_path / "output",
+        diretorio_planilhas=tmp_path / "planilhas",
         modo_simulado=True,
         diretorio_fixtures_api=_api_fixtures(tmp_path),
         salvar_auditoria=False,
@@ -120,6 +149,7 @@ def test_workflow_falha_categoria_api_marca_pendente_sem_bloquear_excel(tmp_path
         data_fim="2026-07-13",
         arquivo_cielo=Path("tests/fixtures/cielo/cielo_valido.xlsx"),
         diretorio_saida=tmp_path / "output",
+        diretorio_planilhas=tmp_path / "planilhas",
         modo_simulado=True,
         diretorio_fixtures_api=api_dir,
         salvar_auditoria=False,
@@ -141,7 +171,7 @@ def test_workflow_falha_categoria_api_marca_pendente_sem_bloquear_excel(tmp_path
 def test_workflow_erro_401_nao_gera_relatorio_e_retorna_codigo_autenticacao(
     tmp_path, monkeypatch
 ):
-    monkeypatch.setenv("VELO_BEARER_TOKEN", "token-teste-nao-real")
+    monkeypatch.delenv("VELO_BEARER_TOKEN", raising=False)
     transport = FakeVeloTransport(
         {
             "autoCompletarOperadora": text_response(
@@ -155,15 +185,19 @@ def test_workflow_erro_401_nao_gera_relatorio_e_retorna_codigo_autenticacao(
         data_fim="2026-07-13",
         arquivo_cielo=Path("tests/fixtures/cielo/cielo_valido.xlsx"),
         diretorio_saida=tmp_path / "output",
+        diretorio_planilhas=tmp_path / "planilhas",
         identificador_execucao="20260719_120000_auth",
     )
 
-    result = ReconciliationWorkflow(transport=transport).executar(command)
+    result = ReconciliationWorkflow(
+        transport=transport,
+        token_provider=StaticTokenProvider("token-teste-nao-real"),
+    ).executar(command)
 
     assert result.status_geral is WorkflowStatus.FALHA
     assert result.codigo_saida == 4
     assert result.resultado_cielo is None
-    assert not list((tmp_path / "output" / "cielo").glob("*.xlsx"))
+    assert not list((tmp_path / "planilhas").glob("**/*.xlsx"))
     assert "token-teste-nao-real" not in _combined_text(result.logs)
 
 
@@ -174,6 +208,48 @@ def test_workflow_command_rejeita_sem_arquivo():
         assert "informe pelo menos um arquivo" in str(exc)
     else:
         raise AssertionError("comando sem arquivos deveria falhar")
+
+
+def test_workflow_queries_debit_category_by_receipt_date():
+    leitura = ler_quickpay("tests/fixtures/quickpay/quickpay_valido.xlsx")
+    validacao = QuickPayValidator().validar(
+        leitura, data_inicio=date(2026, 7, 13), data_fim=date(2026, 7, 13)
+    )
+    relatorio = QuickPayProcessor().processar(
+        leitura,
+        validacao,
+        data_inicio=date(2026, 7, 13),
+        data_fim=date(2026, 7, 13),
+    )
+    debit_line = replace(
+        relatorio.linhas[0],
+        transacao=relatorio.linhas[0].transacao.model_copy(
+            update={
+                "modalidade": Modalidade.DEBITO,
+                "data_recebimento": date(2026, 7, 15),
+            }
+        ),
+    )
+    prepared = {
+        Operadora.QUICKPAY: _PreparedOperator(
+            operadora=Operadora.QUICKPAY,
+            validacao=cast(ResultadoValidacao, SimpleNamespace(valido=True)),
+            relatorio=replace(relatorio, linhas=(debit_line,)),
+            categorias=[CategoriaFiltroVelo.QUICKPAY_DEBITO],
+        )
+    }
+    comando = ReconciliationCommand(
+        data_inicio="2026-07-13",
+        data_fim="2026-07-13",
+        arquivo_quickpay=Path("tests/fixtures/quickpay/quickpay_valido.xlsx"),
+    )
+
+    periodos = _periodos_consulta_por_categoria(comando, prepared)
+
+    assert periodos[CategoriaFiltroVelo.QUICKPAY_DEBITO] == (
+        date(2026, 7, 15),
+        date(2026, 7, 15),
+    )
 
 
 def _api_fixtures(tmp_path: Path, *, omit: set[str] | None = None) -> Path:

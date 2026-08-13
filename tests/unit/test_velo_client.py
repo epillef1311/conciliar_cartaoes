@@ -123,6 +123,19 @@ def test_empty_conciliation_response_is_valid(tmp_path: Path):
     ) == []
 
 
+def test_conciliation_record_accepts_integer_auxiliary_action(tmp_path: Path):
+    client, _transport = _client(tmp_path, json_response([_valid_record(acao=1)]))
+
+    result = client.consultar_conciliacao(
+        categoria=CategoriaFiltroVelo.CIELO_CREDITO,
+        filtro_forma_recebimento_id=81,
+        data_inicio=date(2026, 7, 14),
+        data_fim=date(2026, 7, 14),
+    )
+
+    assert len(result) == 1
+
+
 @pytest.mark.parametrize(
     ("payload", "expected_message"),
     [

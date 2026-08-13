@@ -13,6 +13,11 @@ def categoria_da_transacao(transacao: TransacaoOperadora) -> CategoriaFiltroVelo
 
 
 def categoria_do_registro(registro: RegistroSistema) -> CategoriaFiltroVelo | None:
+    if registro.categoria_origem is not None:
+        try:
+            return CategoriaFiltroVelo(registro.categoria_origem)
+        except ValueError:
+            return None
     operadora = normalizar_operadora(registro.operadora)
     modalidade = normalizar_modalidade_sistema(registro.forma_recebimento)
     if operadora is None or modalidade is None:

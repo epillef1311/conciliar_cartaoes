@@ -6,6 +6,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+import requests
+
 
 @dataclass(frozen=True, slots=True)
 class HttpResponse:
@@ -59,6 +61,41 @@ class UrlLibTransport:
             raise
         except URLError:
             raise
+
+
+class RequestsSessionTransport:
+    """Transporte sequencial com conexao HTTPS persistente."""
+
+    def __init__(self, session: requests.Session | None = None) -> None:
+        self.session = session or requests.Session()
+
+    def get(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        params: dict[str, object] | None,
+        timeout: object,
+    ) -> HttpResponse:
+        try:
+            response = self.session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=timeout,
+            )
+        except requests.Timeout as exc:
+            raise TimeoutError("Tempo limite da API Velo excedido.") from exc
+        except requests.RequestException as exc:
+            raise URLError("Falha de conexao com a API Velo.") from exc
+        return HttpResponse(
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            text=response.text,
+        )
+
+    def close(self) -> None:
+        self.session.close()
 
 
 def _url_with_params(url: str, params: dict[str, object] | None) -> str:

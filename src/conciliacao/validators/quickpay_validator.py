@@ -8,6 +8,10 @@ from typing import Any
 
 from conciliacao.domain.enums import Operadora, SeveridadeAlerta
 from conciliacao.domain.models import AlertaValidacao, TransacaoOperadora
+from conciliacao.quickpay.recebimentos_bancarios import (
+    RecebimentoBancarioQuickPay,
+    ler_recebimentos_bancarios,
+)
 from conciliacao.readers.models import ResultadoLeitura
 from conciliacao.readers.quickpay_reader import ler_quickpay
 from conciliacao.utils.currency import PERCENTUAL_QUANTUM, quantize_money, sum_money
@@ -36,6 +40,7 @@ class QuickPayValidator:
         *,
         data_inicio: date | None = None,
         data_fim: date | None = None,
+        recebimentos_bancarios: tuple[RecebimentoBancarioQuickPay, ...] | None = None,
     ) -> ResultadoValidacao:
         erros, avisos, periodo = validar_comum(
             resultado,
@@ -43,17 +48,21 @@ class QuickPayValidator:
             data_inicio=data_inicio,
             data_fim=data_fim,
         )
-        erros.extend(self._validar_estrutura(resultado))
+        erros.extend(
+            self._validar_estrutura(resultado, exigir_coluna_banco=recebimentos_bancarios is None)
+        )
         for transacao in resultado.transacoes:
-            erros.extend(self._validar_recebido_banco(resultado, transacao))
+            if recebimentos_bancarios is None:
+                erros.extend(self._validar_recebido_banco(resultado, transacao))
             for alerta_valor in self._validar_valores(resultado, transacao):
                 if alerta_valor.severidade in {SeveridadeAlerta.ERRO, SeveridadeAlerta.CRITICO}:
                     erros.append(alerta_valor)
                 else:
                     avisos.append(alerta_valor)
-            avisos.extend(self._avisos_transacao(resultado, transacao))
+            if recebimentos_bancarios is None:
+                avisos.extend(self._avisos_transacao(resultado, transacao))
         avisos.extend(self._validar_duplicidade(resultado))
-        totais = self._totais(resultado)
+        totais = self._totais(resultado, recebimentos_bancarios=recebimentos_bancarios)
         return montar_resultado(
             resultado,
             operadora=Operadora.QUICKPAY,
@@ -61,10 +70,17 @@ class QuickPayValidator:
             avisos=avisos,
             totais=totais,
             periodo=periodo,
-            metadados={"validacao": "quickpay"},
+            metadados={
+                "validacao": "quickpay",
+                "fonte_recebimento_bancario": "PLANILHA_AUXILIAR"
+                if recebimentos_bancarios is not None
+                else "ARQUIVO_QUICKPAY",
+            },
         )
 
-    def _validar_estrutura(self, resultado: ResultadoLeitura) -> list[AlertaValidacao]:
+    def _validar_estrutura(
+        self, resultado: ResultadoLeitura, *, exigir_coluna_banco: bool
+    ) -> list[AlertaValidacao]:
         required = {
             "Data da venda": "QUICKPAY_DATA_VENDA_AUSENTE",
             "Data de recebimento": "QUICKPAY_DATA_RECEBIMENTO_AUSENTE",
@@ -90,6 +106,8 @@ class QuickPayValidator:
                 )
 
         bank_count = contagem_cabecalho(resultado, BANCO_HEADER)
+        if not exigir_coluna_banco:
+            return erros
         if bank_count == 0:
             erros.append(
                 alerta(
@@ -121,9 +139,7 @@ class QuickPayValidator:
         raw = valor_original(transacao, BANCO_HEADER)
         if banco is None:
             codigo = (
-                "QUICKPAY_RECEBIDO_VAZIO"
-                if raw in {None, ""}
-                else "QUICKPAY_RECEBIDO_INVALIDO"
+                "QUICKPAY_RECEBIDO_VAZIO" if raw in {None, ""} else "QUICKPAY_RECEBIDO_INVALIDO"
             )
             return [
                 alerta_transacao(
@@ -267,20 +283,31 @@ class QuickPayValidator:
                 )
         return avisos
 
-    def _totais(self, resultado: ResultadoLeitura) -> dict[str, Any]:
+    def _totais(
+        self,
+        resultado: ResultadoLeitura,
+        *,
+        recebimentos_bancarios: tuple[RecebimentoBancarioQuickPay, ...] | None = None,
+    ) -> dict[str, Any]:
         totais = totais_basicos(resultado.transacoes)
         totais["total_taxa"] = totais["total_taxas_normalizadas"]
         totais["total_bruto_liquido"] = sum_money(
-            transacao.valor_bruto - transacao.valor_liquido
-            for transacao in resultado.transacoes
+            transacao.valor_bruto - transacao.valor_liquido for transacao in resultado.transacoes
         )
         totais["total_diferenca_taxa"] = sum_money(
             transacao.taxa_normalizada
             - quantize_money(transacao.valor_bruto - transacao.valor_liquido)
             for transacao in resultado.transacoes
         )
-        recebidos = [_recebido_banco(transacao) for transacao in resultado.transacoes]
-        recebidos_validos = [valor for valor in recebidos if valor is not None]
+        recebidos_validos = (
+            [item.valor_recebido for item in recebimentos_bancarios]
+            if recebimentos_bancarios is not None
+            else [
+                valor
+                for valor in (_recebido_banco(transacao) for transacao in resultado.transacoes)
+                if valor is not None
+            ]
+        )
         totais["total_recebido_banco"] = sum_money(recebidos_validos)
         totais["diferenca_total_banco_liquido"] = quantize_money(
             totais["total_recebido_banco"] - totais["total_liquido"]
@@ -297,13 +324,29 @@ class QuickPayValidator:
 
 
 def validar_quickpay_arquivo(
-    arquivo: str | Path, *, data_inicio: date | None = None, data_fim: date | None = None
+    arquivo: str | Path,
+    *,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
+    arquivo_recebimentos_bancarios: str | Path | None = None,
 ) -> ResultadoValidacao:
     try:
         resultado = ler_quickpay(arquivo)
     except Exception as exc:
         return alerta_de_excecao_leitura(exc, arquivo=arquivo, operadora=Operadora.QUICKPAY)
-    return QuickPayValidator().validar(resultado, data_inicio=data_inicio, data_fim=data_fim)
+    try:
+        recebimentos = (
+            ler_recebimentos_bancarios(Path(arquivo_recebimentos_bancarios))
+            if arquivo_recebimentos_bancarios is not None
+            else None
+        )
+    except Exception as exc:
+        return alerta_de_excecao_leitura(
+            exc, arquivo=arquivo_recebimentos_bancarios or arquivo, operadora=Operadora.QUICKPAY
+        )
+    return QuickPayValidator().validar(
+        resultado, data_inicio=data_inicio, data_fim=data_fim, recebimentos_bancarios=recebimentos
+    )
 
 
 def _recebido_banco(transacao: TransacaoOperadora) -> Decimal | None:

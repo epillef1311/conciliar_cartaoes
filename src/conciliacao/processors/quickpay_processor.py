@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from datetime import date, time
 from decimal import Decimal
 
-from conciliacao.domain.enums import Operadora
+from conciliacao.domain.enums import Modalidade, Operadora
 from conciliacao.domain.models import TransacaoOperadora
+from conciliacao.quickpay.recebimentos_bancarios import RecebimentoBancarioQuickPay
 from conciliacao.readers.models import ResultadoLeitura
 from conciliacao.utils.currency import fee_percentage, quantize_money, sum_money
 from conciliacao.utils.dates import validate_period
@@ -23,11 +24,24 @@ class QuickPayProcessingError(ValueError):
 class QuickPayLinhaProcessada:
     transacao: TransacaoOperadora
     tipo_pagamento: str
-    recebido_banco: Decimal
+    recebido_banco: Decimal | None
     bruto_liquido: Decimal
     diferenca_taxa: Decimal
     porcentagem: Decimal | None
+    diferenca_banco: Decimal | None
+    grupo_bancario: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class QuickPayGrupoBancario:
+    data_recebimento: date
+    bandeira: str
+    modalidade: Modalidade
+    quantidade_transacoes: int
+    total_liquido_quickpay: Decimal
+    valor_recebido_banco: Decimal
     diferenca_banco: Decimal
+    status: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +68,7 @@ class QuickPayRelatorioProcessado:
     linhas: tuple[QuickPayLinhaProcessada, ...]
     resumo: QuickPayResumoProcessamento
     hash_origem: str
+    grupos_bancarios: tuple[QuickPayGrupoBancario, ...]
 
 
 class QuickPayProcessor:
@@ -64,6 +79,7 @@ class QuickPayProcessor:
         *,
         data_inicio: date,
         data_fim: date,
+        recebimentos_bancarios: tuple[RecebimentoBancarioQuickPay, ...] | None = None,
     ) -> QuickPayRelatorioProcessado:
         if leitura.transacoes and leitura.transacoes[0].operadora is not Operadora.QUICKPAY:
             raise QuickPayProcessingError("resultado de leitura nao pertence a QuickPay")
@@ -80,7 +96,20 @@ class QuickPayProcessor:
         if not selecionadas:
             raise QuickPayProcessingError("nenhuma transacao QuickPay dentro do periodo solicitado")
 
-        linhas = tuple(_montar_linha(transacao) for transacao in _ordenar(selecionadas))
+        grupos = (
+            _conciliar_recebimentos_bancarios(selecionadas, recebimentos_bancarios)
+            if recebimentos_bancarios is not None
+            else ()
+        )
+        linhas = tuple(
+            _montar_linha(transacao, usar_recebimentos_agregados=recebimentos_bancarios is not None)
+            for transacao in _ordenar(selecionadas)
+        )
+        total_recebido = (
+            sum_money(grupo.valor_recebido_banco for grupo in grupos)
+            if recebimentos_bancarios is not None
+            else sum_money(linha.recebido_banco or Decimal("0.00") for linha in linhas)
+        )
         resumo = QuickPayResumoProcessamento(
             transacoes_lidas=len(leitura.transacoes),
             transacoes_incluidas=len(linhas),
@@ -90,10 +119,9 @@ class QuickPayProcessor:
             total_liquido=sum_money(linha.transacao.valor_liquido for linha in linhas),
             total_bruto_liquido=sum_money(linha.bruto_liquido for linha in linhas),
             total_diferenca_taxa=sum_money(linha.diferenca_taxa for linha in linhas),
-            total_recebido_banco=sum_money(linha.recebido_banco for linha in linhas),
+            total_recebido_banco=total_recebido,
             diferenca_total_banco_liquido=quantize_money(
-                sum_money(linha.recebido_banco for linha in linhas)
-                - sum_money(linha.transacao.valor_liquido for linha in linhas)
+                total_recebido - sum_money(linha.transacao.valor_liquido for linha in linhas)
             ),
             valor_bruto_zero=sum(
                 1 for linha in linhas if linha.transacao.valor_bruto == Decimal("0.00")
@@ -107,6 +135,7 @@ class QuickPayProcessor:
             linhas=linhas,
             resumo=resumo,
             hash_origem=leitura.hash_sha256,
+            grupos_bancarios=grupos,
         )
 
 
@@ -116,18 +145,21 @@ def _ordenar(transacoes: Iterable[TransacaoOperadora]) -> list[TransacaoOperador
 
 def _chave_ordenacao(transacao: TransacaoOperadora) -> tuple[object, ...]:
     return (
-        transacao.data_recebimento or date.min,
         transacao.data_venda,
-        transacao.hora_venda or time.min,
-        normalize_text(str(valor_original(transacao, "Tipo de pagamento") or "")).comparavel,
+        0 if transacao.modalidade is Modalidade.CREDITO else 1,
         normalize_text(transacao.bandeira or "").comparavel,
+        transacao.hora_venda or time.min,
+        transacao.data_recebimento or date.min,
+        normalize_text(str(valor_original(transacao, "Tipo de pagamento") or "")).comparavel,
         transacao.valor_bruto,
     )
 
 
-def _montar_linha(transacao: TransacaoOperadora) -> QuickPayLinhaProcessada:
-    recebido_banco = _recebido_banco(transacao)
-    if recebido_banco is None:
+def _montar_linha(
+    transacao: TransacaoOperadora, *, usar_recebimentos_agregados: bool
+) -> QuickPayLinhaProcessada:
+    recebido_banco = None if usar_recebimentos_agregados else _recebido_banco(transacao)
+    if recebido_banco is None and not usar_recebimentos_agregados:
         raise QuickPayProcessingError(
             "transacao QuickPay sem RECEBIDO NO BANCO QUICKPAY valido: "
             f"linha {transacao.linha_original}"
@@ -151,7 +183,16 @@ def _montar_linha(transacao: TransacaoOperadora) -> QuickPayLinhaProcessada:
         bruto_liquido=bruto_liquido,
         diferenca_taxa=diferenca_taxa,
         porcentagem=fee_percentage(transacao.valor_bruto, transacao.valor_liquido),
-        diferenca_banco=quantize_money(recebido_banco - transacao.valor_liquido),
+        diferenca_banco=(
+            None
+            if recebido_banco is None
+            else quantize_money(recebido_banco - transacao.valor_liquido)
+        ),
+        grupo_bancario=(
+            _serializar_chave_bancaria(_chave_bancaria_transacao(transacao))
+            if usar_recebimentos_agregados
+            else None
+        ),
     )
 
 
@@ -160,14 +201,65 @@ def _recebido_banco(transacao: TransacaoOperadora) -> Decimal | None:
     return value if isinstance(value, Decimal) else None
 
 
+def _conciliar_recebimentos_bancarios(
+    transacoes: list[TransacaoOperadora],
+    recebimentos: tuple[RecebimentoBancarioQuickPay, ...],
+) -> tuple[QuickPayGrupoBancario, ...]:
+    por_chave: dict[tuple[date, str, Modalidade], list[TransacaoOperadora]] = {}
+    for transacao in transacoes:
+        por_chave.setdefault(_chave_bancaria_transacao(transacao), []).append(transacao)
+    banco_por_chave = {item.chave: item for item in recebimentos}
+    faltantes = set(por_chave) - set(banco_por_chave)
+    extras = set(banco_por_chave) - set(por_chave)
+    if faltantes:
+        raise QuickPayProcessingError(
+            "não há recebimento bancário informado para todos os grupos QuickPay"
+        )
+    if extras:
+        raise QuickPayProcessingError(
+            "há recebimento bancário sem grupo de vendas QuickPay correspondente"
+        )
+    grupos = []
+    for key in sorted(por_chave):
+        itens = por_chave[key]
+        recebido = banco_por_chave[key]
+        total_liquido = sum_money(item.valor_liquido for item in itens)
+        diferenca = quantize_money(recebido.valor_recebido - total_liquido)
+        grupos.append(
+            QuickPayGrupoBancario(
+                data_recebimento=key[0],
+                bandeira=recebido.bandeira,
+                modalidade=key[2],
+                quantidade_transacoes=len(itens),
+                total_liquido_quickpay=total_liquido,
+                valor_recebido_banco=recebido.valor_recebido,
+                diferenca_banco=diferenca,
+                status="CONCILIADO BANCO" if diferenca == Decimal("0.00") else "DIVERGENCIA BANCO",
+            )
+        )
+    return tuple(grupos)
+
+
+def _chave_bancaria_transacao(transacao: TransacaoOperadora) -> tuple[date, str, Modalidade]:
+    if transacao.data_recebimento is None or transacao.modalidade is None or not transacao.bandeira:
+        raise QuickPayProcessingError(
+            f"transação QuickPay sem chave bancária confiável: linha {transacao.linha_original}"
+        )
+    return (
+        transacao.data_recebimento,
+        normalize_text(transacao.bandeira).comparavel,
+        transacao.modalidade,
+    )
+
+
+def _serializar_chave_bancaria(chave: tuple[date, str, Modalidade]) -> str:
+    return f"{chave[0].isoformat()} | {chave[1]} | {chave[2].value}"
+
+
 def _titulo(linhas: tuple[QuickPayLinhaProcessada, ...]) -> str:
     datas_venda = sorted({linha.transacao.data_venda for linha in linhas})
     datas_recebimento = sorted(
-        {
-            linha.transacao.data_recebimento
-            for linha in linhas
-            if linha.transacao.data_recebimento
-        }
+        {linha.transacao.data_recebimento for linha in linhas if linha.transacao.data_recebimento}
     )
     return (
         "VENDAS QUICKPAY FRIGORIFICO CANDEIAS "

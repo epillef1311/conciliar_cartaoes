@@ -114,30 +114,31 @@ class CieloProcessor:
     def _montar_blocos(self, transacoes: tuple[TransacaoOperadora, ...]) -> list[CieloBloco]:
         blocos: list[CieloBloco] = []
         card_start: int | None = None
-        card_payment: date | None = None
+        card_key: tuple[date, Modalidade] | None = None
         pix_start: int | None = None
         for index, transacao in enumerate(transacoes):
             if transacao.modalidade is Modalidade.PIX:
                 if card_start is not None:
-                    blocos.append(_bloco_cartao(transacoes, card_start, index - 1, card_payment))
+                    blocos.append(_bloco_cartao(transacoes, card_start, index - 1))
                     card_start = None
-                    card_payment = None
+                    card_key = None
                 if pix_start is None:
                     pix_start = index
                 continue
 
             if pix_start is not None:
                 raise CieloProcessingError("cartao encontrado depois do bloco Pix")
+            key = (transacao.data_venda, transacao.modalidade)
             if card_start is None:
                 card_start = index
-                card_payment = transacao.data_recebimento
-            elif transacao.data_recebimento != card_payment:
-                blocos.append(_bloco_cartao(transacoes, card_start, index - 1, card_payment))
+                card_key = key
+            elif key != card_key:
+                blocos.append(_bloco_cartao(transacoes, card_start, index - 1))
                 card_start = index
-                card_payment = transacao.data_recebimento
+                card_key = key
 
         if card_start is not None:
-            blocos.append(_bloco_cartao(transacoes, card_start, len(transacoes) - 1, card_payment))
+            blocos.append(_bloco_cartao(transacoes, card_start, len(transacoes) - 1))
         if pix_start is not None:
             blocos.append(_bloco_pix(transacoes, pix_start, len(transacoes) - 1))
         return blocos
@@ -160,13 +161,12 @@ def _bloco_cartao(
     transacoes: tuple[TransacaoOperadora, ...],
     inicio: int,
     fim: int,
-    data_pagamento: date | None,
 ) -> CieloBloco:
     return CieloBloco(
         tipo="CARTAO",
         inicio_indice=inicio,
         fim_indice=fim,
-        data_pagamento=data_pagamento,
+        data_pagamento=transacoes[inicio].data_recebimento,
         total_bruto=sum_money(transacao.valor_bruto for transacao in transacoes[inicio : fim + 1]),
         total_liquido=sum_money(
             transacao.valor_liquido for transacao in transacoes[inicio : fim + 1]
@@ -191,11 +191,11 @@ def _bloco_pix(
 
 def _chave_cartao(transacao: TransacaoOperadora) -> tuple[object, ...]:
     return (
-        transacao.data_recebimento or date.min,
         transacao.data_venda,
         0 if transacao.modalidade is Modalidade.CREDITO else 1,
         normalize_text(transacao.bandeira or "").comparavel,
         transacao.hora_venda,
+        transacao.data_recebimento or date.min,
     )
 
 

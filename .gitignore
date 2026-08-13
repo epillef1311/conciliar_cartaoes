@@ -26,8 +26,10 @@ data/input/**
 data/api_raw/**
 data/processed/**
 data/archive/**
+data/local/**
 output/**
 logs/**
+homologacao/**
 !data/
 !data/input/
 !data/api_raw/

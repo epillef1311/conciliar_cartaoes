@@ -16,8 +16,8 @@ Este projeto automatiza conciliacao financeira. Preserve a rastreabilidade e evi
 10. Gere Cielo e QuickPay de forma independente.
 11. Informe erros com arquivo, aba, linha, coluna e celula quando possivel.
 12. Mantenha a saida Cielo da primeira versao proxima ao modelo LEO, com aba principal `Planilha1`.
-13. Exija `RECEBIDO NO BANCO QUICKPAY` dentro da tabela transacional da QuickPay.
-14. Nao aceite o formato legado QuickPay com valores bancarios fora da tabela transacional.
+13. Para QuickPay, aceite recebimentos bancarios agregados somente por planilha auxiliar gerada a partir de valores confirmados pelo usuario no chat, usando data de recebimento, bandeira e modalidade.
+14. Nunca distribua ou replique um total bancario agregado nas linhas individuais de venda QuickPay.
 15. Execute testes apos mudancas de codigo.
 16. Nunca imprima nem salve cabecalho `Authorization`.
 17. Nunca use respostas reais completas da API como fixtures publicas.
@@ -30,11 +30,13 @@ Este projeto automatiza conciliacao financeira. Preserve a rastreabilidade e evi
 24. Nao use hora da operadora como chave enquanto a API nao fornecer horario.
 25. Nao use `valorTaxaCartao` como chave de matching.
 26. Distinga categoria nao consultada de resposta consultada vazia.
-27. Login automatico na Velo nao existe neste projeto.
-28. Token Velo deve vir apenas de variavel de ambiente.
+27. No fluxo real padrao, use login assistido em Chrome visivel; o usuario conclui o acesso e nenhum desafio de seguranca pode ser burlado.
+28. O token Velo capturado no login assistido deve permanecer somente em memoria durante a execucao e ser descartado ao final; variavel de ambiente fica restrita a compatibilidade tecnica e testes controlados.
 29. Gere arquivos finais de forma atomica sempre que o workflow orquestrar exportacao.
 30. Nao polua o layout Cielo com dados da API; use resumo/log/JSON lateral.
+31. Quando o usuario solicitar "Conciliacao", execute o workflow completo `processar`: login manual assistido na Velo, consultas somente leitura, matching e relatorios finais. Use comandos isolados como `gerar-cielo` somente quando o usuario pedir explicitamente geracao de relatorio sem Velo ou sem matching.
+32. Neste ambiente Windows, execute comandos operacionais pelo PowerShell por padrao. Ao passar caminhos de planilhas ou outros arquivos como argumentos, coloque sempre o caminho entre aspas quando houver espacos ou caracteres especiais; para automacoes, preserve o caminho como um unico argumento.
 
 ## Escopo atual
 
-A Etapa 9 implementa workflow integrado com API somente leitura, modo simulado, matching, exportacao independente, logs e resumos. Nao implemente login automatico, escrita na API, compensacao, alteracao de caixa ou homologacao com dados reais sem pedido explicito.
+A Etapa 9 implementa workflow integrado com API somente leitura, modo simulado, matching, exportacao independente, logs, resumos e login manual assistido no fluxo real. Nao implemente preenchimento automatico de credenciais, escrita na API, compensacao ou alteracao de caixa.

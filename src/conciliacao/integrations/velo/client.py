@@ -25,7 +25,11 @@ from conciliacao.integrations.velo.exceptions import (
     VeloServerError,
     VeloTimeoutError,
 )
-from conciliacao.integrations.velo.http import HttpResponse, HttpTransport, UrlLibTransport
+from conciliacao.integrations.velo.http import (
+    HttpResponse,
+    HttpTransport,
+    RequestsSessionTransport,
+)
 from conciliacao.integrations.velo.mapper import map_registro_sistema
 from conciliacao.integrations.velo.schemas import FormaRecebimentoApi, RegistroConciliacaoApi
 from conciliacao.utils.dates import validate_period
@@ -42,7 +46,7 @@ class VeloClient:
     ) -> None:
         self.config = config or load_velo_api_config()
         self.token_provider = token_provider or VeloTokenProvider()
-        self.transport = transport or UrlLibTransport()
+        self.transport = transport or RequestsSessionTransport()
         self.audit_writer = audit_writer
 
     def autocomplete_operadoras(self) -> list[FormaRecebimentoApi]:

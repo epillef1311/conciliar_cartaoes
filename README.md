@@ -4,7 +4,7 @@ Automacao para conciliar vendas de Cielo e QuickPay com os registros de caixa ob
 
 ## Estado atual
 
-Este repositorio esta na Etapa 9: workflow integrado com leitura, validacao, consulta Velo somente leitura, matching, exportacao independente de Cielo e QuickPay, logs e resumos de execucao. O modo simulado usa fixtures e zero internet; o modo real usa apenas `VELO_BEARER_TOKEN`.
+Este repositorio esta na Etapa 9: workflow integrado com leitura, validacao, consulta Velo somente leitura, matching, exportacao independente de Cielo e QuickPay, logs e resumos de execucao. O modo simulado usa fixtures e zero internet; o modo real abre um Chrome visivel para login manual assistido e mantem o token somente em memoria.
 
 ## Preparação em outro computador
 
@@ -19,7 +19,7 @@ cd conciliacaoCartoes
 - O periodo informado representa a data da venda.
 - A API sera comparada pela data `dataCadastro`; `dataVencimento` sera preservada como informacao auxiliar.
 - A saida Cielo da primeira versao tera apenas a aba `Planilha1`, seguindo o modelo LEO.
-- A QuickPay exigira a coluna `RECEBIDO NO BANCO QUICKPAY` dentro da tabela transacional.
+- Na QuickPay, os recebimentos bancarios podem ser informados em uma planilha auxiliar agregada por data de recebimento, bandeira e modalidade; ela e gerada a partir dos valores confirmados pelo usuario no chat.
 - Tokens nunca devem ser salvos no repositorio, em logs ou em arquivos de configuracao versionados.
 - Arquivos reais de entrada, respostas brutas da API, logs e saidas geradas ficam fora do Git.
 
@@ -48,14 +48,23 @@ Gerar somente o relatorio QuickPay:
 ```powershell
 conciliacao gerar-quickpay `
   --arquivo "arquivos_exemplo/quickpay_preparado.xlsx" `
+  --arquivo-recebimentos-quickpay "output/RECEBIMENTOS_BANCARIOS_QUICKPAY.xlsx" `
   --data-inicio 2026-07-13 `
   --data-fim 2026-07-13 `
   --saida "output/quickpay"
 ```
 
-O QuickPay aceita XLSX e arquivos HTML exportados com extensao `.xls`, desde que a tabela transacional contenha exatamente uma coluna `RECEBIDO NO BANCO QUICKPAY`. O formato legado com valores bancarios fora da tabela principal e invalido e nao gera saida.
+O QuickPay aceita XLSX e arquivos HTML exportados com extensao `.xls`. Quando o relatorio nao tiver o valor bancario por venda, informe os totais confirmados no chat e gere a planilha auxiliar com `gerar-recebimentos-quickpay`. A conciliacao bancaria e feita por grupo de data de recebimento, bandeira e modalidade, e aparece na aba `Conciliação Bancária` do relatorio final. Arquivos antigos que ja possuem `RECEBIDO NO BANCO QUICKPAY` por venda continuam aceitos.
 
-Exemplo minimo de entrada QuickPay:
+Formato para informar cada grupo no chat: `YYYY-MM-DD|Bandeira|Modalidade|Valor`. Exemplo: `2026-07-20|Visa|credito|1250,32`.
+
+O pipeline gera a planilha auxiliar assim:
+
+```powershell
+conciliacao gerar-recebimentos-quickpay --saida "output" --recebimento "2026-07-20|Visa|credito|1250,32"
+```
+
+Exemplo de entrada QuickPay legada (ainda aceita):
 
 ```text
 Data da venda | Data de recebimento | Numero de Parcelas | Tipo de pagamento | Valor da Venda | Valor liquido | Taxa | Bandeira | RECEBIDO NO BANCO QUICKPAY
@@ -98,10 +107,9 @@ conciliacao testar-integracao-velo `
 
 Esse comando usa somente fixtures anonimizadas, nao exige token real, nao acessa rede e valida os schemas da API. A saida informa `Chamadas reais realizadas: 0`.
 
-Executar o workflow integrado em modo real:
+Executar o workflow integrado em modo real. O Chrome sera aberto e o usuario deve concluir o login antes de a conciliacao continuar:
 
 ```powershell
-$env:VELO_BEARER_TOKEN="TOKEN_AQUI"
 conciliacao processar `
   --data-inicio 2026-07-13 `
   --data-fim 2026-07-13 `
@@ -111,7 +119,7 @@ conciliacao processar `
   --salvar-auditoria
 ```
 
-O token nunca e aceito como argumento de linha de comando. Nao ha login automatico por usuario e senha.
+O token nunca e solicitado, exibido ou aceito como argumento. O Chrome pode preencher credenciais salvas pelo proprio navegador, mas o usuario confirma o login. O token capturado permanece somente em memoria e e descartado ao final.
 
 Executar o workflow integrado em modo simulado:
 
@@ -141,15 +149,19 @@ Codigos de saida do `processar`:
 Arquivos gerados pelo workflow:
 
 ```text
-output/cielo/CIELO_CONCILIACAO_<PERIODO>.xlsx
+planilhas/<DATA_DA_CONCILIACAO>/cielo/CIELO_CONCILIACAO_<PERIODO>.xlsx
 output/cielo/CIELO_CONCILIACAO_<PERIODO>_RESULTADO.json
-output/quickpay/QUICKPAY_CONCILIACAO_<PERIODO>.xlsx
+planilhas/<DATA_DA_CONCILIACAO>/quickpay/QUICKPAY_CONCILIACAO_<PERIODO>.xlsx
 output/quickpay/QUICKPAY_CONCILIACAO_<PERIODO>_RESULTADO.json
 output/execucoes/<IDENTIFICADOR_EXECUCAO>/resumo.json
 output/execucoes/<IDENTIFICADOR_EXECUCAO>/resumo.txt
 logs/conciliacao_<IDENTIFICADOR_EXECUCAO>.log
 data/api_raw/<IDENTIFICADOR_EXECUCAO>/*.json
 ```
+
+`<DATA_DA_CONCILIACAO>` e a data em que o workflow foi executado, no formato
+`YYYY-MM-DD`. Use `--diretorio-planilhas` somente se for necessario alterar a
+pasta-raiz `planilhas`.
 
 Os hashes SHA-256 dos arquivos de entrada sao calculados antes e depois do processamento. Se um hash mudar, a execucao daquela operadora falha.
 
@@ -168,10 +180,11 @@ Endpoints modelados nesta etapa:
 
 Autenticacao:
 
-- O token deve vir exclusivamente de `VELO_BEARER_TOKEN`.
-- `.env.example` contem apenas `VELO_BEARER_TOKEN=`.
+- No modo real, o fluxo abre Chrome visivel e observa somente a validacao concluida pelo usuario.
+- O token permanece em memoria durante a execucao e e descartado ao final.
 - O token nao pode ser salvo em YAML, logs, fixtures, auditoria ou mensagens de erro.
 - O cliente monta internamente `Authorization: Bearer <TOKEN>` e `Accept: application/json`.
+- `VELO_BEARER_TOKEN` permanece apenas como compatibilidade tecnica para testes controlados fora do fluxo padrao.
 
 Parametros enviados para conciliacao:
 
@@ -275,7 +288,7 @@ O comando usa fixtures artificiais, nao exige token, nao acessa rede, nao altera
 ## Limitacoes atuais
 
 - Nao ha conciliacao automatica com o sistema.
-- As saidas Cielo e QuickPay tem somente a aba principal, sem abas auxiliares.
+- A saida Cielo mantem a aba principal. A QuickPay usa somente `Conciliação` quando o valor bancario vier por venda; quando vier da planilha auxiliar, inclui `Conciliação Bancária` com a comparação agregada.
 - A Etapa 10 ainda precisa homologar o workflow com dados reais e token temporario autorizado.
 - A API continua estritamente somente leitura; nao ha compensacao, alteracao de caixa nem escrita no ERP.
 

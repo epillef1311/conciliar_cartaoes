@@ -50,6 +50,7 @@ def _reg(
     vencimento: date = date(2026, 7, 15),
     valor: Decimal = Decimal("100.00"),
     ident: str = "SYS-1",
+    categoria_origem: str | None = None,
 ) -> RegistroSistema:
     return RegistroSistema.model_validate(
         {
@@ -62,6 +63,7 @@ def _reg(
             "dataCadastro": cadastro,
             "dataVencimento": vencimento,
             "cadastroCaixaId": f"CX-{ident}",
+            "categoria_origem": categoria_origem,
         }
     )
 
@@ -235,6 +237,64 @@ def test_matching_uses_sale_date_and_data_cadastro_not_due_dates_or_time():
 
     assert result.resumo.conciliados == 1
     assert wrong_cadastro.resumo.conciliados == 0
+
+
+def test_debit_matching_uses_receipt_date_for_cielo_and_quickpay():
+    sale_date = date(2026, 7, 14)
+    receipt_date = date(2026, 7, 15)
+    for operadora, categoria, forma in (
+        (Operadora.CIELO, CategoriaFiltroVelo.CIELO_DEBITO, "Cartão de Débito - Cielo"),
+        (Operadora.QUICKPAY, CategoriaFiltroVelo.QUICKPAY_DEBITO, "Cartão de Débito - QuickPay"),
+    ):
+        transacao = _tx(
+            operadora=operadora,
+            modalidade=Modalidade.DEBITO,
+            venda=sale_date,
+            valor=Decimal("20.00"),
+        )
+        registro_recebimento = _reg(
+            operadora=operadora.value.title(),
+            forma=forma,
+            cadastro=sale_date,
+            vencimento=receipt_date,
+            valor=Decimal("20.00"),
+        )
+        registro_venda = _reg(
+            operadora=operadora.value.title(),
+            forma=forma,
+            cadastro=sale_date,
+            vencimento=sale_date,
+            valor=Decimal("20.00"),
+            ident="SYS-VENDA",
+        )
+        service = ReconciliationService()
+        conciliar = (
+            service.conciliar_cielo
+            if operadora is Operadora.CIELO
+            else service.conciliar_quickpay
+        )
+
+        por_recebimento = conciliar([transacao], [registro_recebimento], {categoria})
+        por_venda = conciliar([transacao], [registro_venda], {categoria})
+
+        assert por_recebimento.resumo.conciliados == 1
+        assert por_venda.resumo.conciliados == 0
+
+
+def test_matching_prefers_consulted_category_when_system_modality_is_abbreviated():
+    result = ReconciliationService().conciliar_cielo(
+        [_tx(modalidade=Modalidade.CREDITO, valor=Decimal("20.00"))],
+        [
+            _reg(
+                forma="Cred. Visa",
+                valor=Decimal("20.00"),
+                categoria_origem=CategoriaFiltroVelo.CIELO_CREDITO.value,
+            )
+        ],
+        _cielo_cats(),
+    )
+
+    assert result.resumo.conciliados == 1
 
 
 def test_one_cent_difference_is_not_rounded_to_zero_when_group_is_unique():

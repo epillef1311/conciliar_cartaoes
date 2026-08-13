@@ -8,7 +8,7 @@ import pytest
 from conciliacao.domain.enums import Modalidade, Operadora
 from conciliacao.readers.exceptions import CabecalhoAmbiguoError, CabecalhoNaoEncontradoError
 from conciliacao.readers.models import FormatoArquivo
-from conciliacao.readers.quickpay_reader import ler_quickpay
+from conciliacao.readers.quickpay_reader import _criar_transacao, ler_quickpay
 
 FIXTURES = Path("tests/fixtures/quickpay")
 
@@ -54,3 +54,48 @@ def test_rejects_missing_or_ambiguous_quickpay_table():
         ler_quickpay(FIXTURES / "quickpay_sem_tabela.xlsx")
     with pytest.raises(CabecalhoAmbiguoError):
         ler_quickpay(FIXTURES / "quickpay_tabelas_ambiguas.xlsx")
+
+
+def test_preserves_missing_installments_without_inventing_a_value():
+    headers = [
+        "Data da venda",
+        "Data de recebimento",
+        "Número de Parcelas",
+        "Bandeira",
+        "Tipo de pagamento",
+        "Valor da Venda",
+        "Taxa",
+        "Valor líquido",
+        "RECEBIDO NO BANCO QUICKPAY",
+    ]
+    transaction = _criar_transacao(
+        values=[
+            "17/07/2026 16:17",
+            "20/07/2026",
+            None,
+            "Visa",
+            "Débito",
+            "134.12",
+            "3.99",
+            "131.45",
+            "131.45",
+        ],
+        row_number=3,
+        headers=headers,
+        indices={
+            "data_venda": 0,
+            "data_recebimento": 1,
+            "numero_parcelas": 2,
+            "bandeira": 3,
+            "tipo_pagamento": 4,
+            "valor_venda": 5,
+            "taxa": 6,
+            "valor_liquido": 7,
+        },
+        banco_index=8,
+        arquivo=Path("quickpay.xlsx"),
+        aba="Conciliação",
+    )
+
+    assert transaction.numero_parcelas is None
+    assert transaction.modalidade is Modalidade.DEBITO

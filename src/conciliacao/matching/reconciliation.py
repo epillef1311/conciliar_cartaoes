@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from conciliacao.domain.enums import Modalidade, Operadora, SeveridadeAlerta, StatusConciliacao
 from conciliacao.domain.models import AlertaValidacao, RegistroSistema, TransacaoOperadora
-from conciliacao.integrations.velo.categories import CategoriaFiltroVelo
+from conciliacao.integrations.velo.categories import CATEGORIAS_VELO, CategoriaFiltroVelo
 from conciliacao.matching.keys import MatchingKey
 from conciliacao.matching.models import (
     NivelConfiancaMatching,
@@ -186,10 +186,31 @@ class ReconciliationService:
                 continue
             if transacao.modalidade is None:
                 continue
+            data_matching = _data_matching_transacao(transacao)
+            if data_matching is None:
+                fallback_key = _fallback_key_transacao(transacao, "DATA_RECEBIMENTO_AUSENTE")
+                individuais.append(
+                    _individual_operadora(
+                        transacao,
+                        status=StatusConciliacao.PENDENTE_DE_DADOS,
+                        nivel=NivelConfiancaMatching.NAO_CORRESPONDIDO,
+                        chave=fallback_key,
+                        motivo="Débito sem data de recebimento confiável para matching.",
+                    )
+                )
+                agregados.append(
+                    _agregado_operadora_somente(
+                        fallback_key,
+                        transacao.valor_bruto,
+                        status=StatusConciliacao.PENDENTE_DE_DADOS,
+                        nivel=NivelConfiancaMatching.NAO_CORRESPONDIDO,
+                    )
+                )
+                continue
             key = MatchingKey(
                 operadora=transacao.operadora,
                 modalidade=transacao.modalidade,
-                data=transacao.data_venda,
+                data=data_matching,
                 valor=quantize_money(transacao.valor_bruto),
                 bandeira=normalizar_bandeira_operadora(transacao),
             )
@@ -206,9 +227,16 @@ class ReconciliationService:
     ) -> list[_SystemItem]:
         items: list[_SystemItem] = []
         for index, registro in enumerate(registros):
-            operadora = normalizar_operadora(registro.operadora)
-            modalidade = normalizar_modalidade_sistema(registro.forma_recebimento)
             categoria = categoria_do_registro(registro)
+            operadora: Operadora | None
+            modalidade: Modalidade | None
+            if categoria is not None:
+                categoria_info = CATEGORIAS_VELO[categoria]
+                operadora = categoria_info.operadora
+                modalidade = categoria_info.modalidade
+            else:
+                operadora = normalizar_operadora(registro.operadora)
+                modalidade = normalizar_modalidade_sistema(registro.forma_recebimento)
             if operadora is None or modalidade is None or categoria is None:
                 fallback_key = _fallback_key_registro(registro, "SISTEMA_DESCONHECIDO")
                 individuais.append(
@@ -232,7 +260,7 @@ class ReconciliationService:
             key = MatchingKey(
                 operadora=operadora,
                 modalidade=modalidade,
-                data=registro.data_cadastro,
+                data=_data_matching_registro(registro, modalidade),
                 valor=quantize_money(registro.valor),
                 bandeira=normalizar_bandeira_sistema(registro),
             )
@@ -648,11 +676,25 @@ def _fallback_key_transacao(transacao: TransacaoOperadora, suffix: str) -> str:
         [
             transacao.operadora.value,
             transacao.modalidade.value if transacao.modalidade else "SEM_MODALIDADE",
-            transacao.data_venda.isoformat(),
+            (_data_matching_transacao(transacao) or transacao.data_venda).isoformat(),
             f"{transacao.valor_bruto:.2f}",
             suffix,
         ]
     )
+
+
+def _data_matching_transacao(transacao: TransacaoOperadora) -> date | None:
+    """Débitos são conciliados pela data de recebimento; demais modalidades, pela venda."""
+    if transacao.modalidade is Modalidade.DEBITO:
+        return transacao.data_recebimento
+    return transacao.data_venda
+
+
+def _data_matching_registro(registro: RegistroSistema, modalidade: Modalidade) -> date:
+    """No débito, a data de vencimento Velo representa o recebimento da operadora."""
+    if modalidade is Modalidade.DEBITO:
+        return registro.data_vencimento
+    return registro.data_cadastro
 
 
 def _fallback_key_registro(registro: RegistroSistema, suffix: str) -> str:

@@ -40,12 +40,14 @@ def test_exports_cielo_sheet_headers_formulas_subtotals_and_total(tmp_path):
         assert [worksheet.cell(2, column).value for column in range(1, 13)] == CIELO_HEADERS
         assert worksheet.cell(3, 10).value == "=1-(I3/G3)"
         assert worksheet.cell(3, 11).value == "=SUM(G3:G3)"
-        assert worksheet.cell(4, 11).value == "=SUM(G4:G4)"
+        assert worksheet.cell(4, 11).value is None
         assert worksheet.cell(5, 7).value == "=SUM(G3:G4)"
         assert worksheet.cell(5, 8).value == "=SUM(H3:H4)"
         assert worksheet.cell(5, 9).value == "=SUM(I3:I4)"
         assert worksheet.cell(5, 10).value == "=1-(I5/G5)"
-        assert result.subtotal_rows == (3, 4)
+        assert result.subtotal_rows == (3,)
+        assert worksheet.cell(3, 1).fill.fgColor.rgb == "FFC0C0C0"
+        assert worksheet.cell(4, 1).fill.fgColor.rgb == "FFFFFF99"
         assert result.total_row == 5
     finally:
         workbook.close()

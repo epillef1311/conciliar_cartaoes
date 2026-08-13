@@ -7,6 +7,7 @@ from conciliacao.processors.cielo_processor import (
     CieloResumoProcessamento,
 )
 from conciliacao.processors.quickpay_processor import (
+    QuickPayGrupoBancario,
     QuickPayLinhaProcessada,
     QuickPayProcessor,
     QuickPayRelatorioProcessado,
@@ -19,6 +20,7 @@ __all__ = [
     "CieloRelatorioProcessado",
     "CieloResumoProcessamento",
     "QuickPayLinhaProcessada",
+    "QuickPayGrupoBancario",
     "QuickPayProcessor",
     "QuickPayRelatorioProcessado",
     "QuickPayResumoProcessamento",
