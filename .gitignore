@@ -26,6 +26,7 @@ planilhas/
 outputs/
 conciliacao-cartoes-cliente-*.zip
 portfolio-sanitized/
+backups/
 data/input/**
 data/api_raw/**
 data/processed/**
