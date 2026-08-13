@@ -10,14 +10,14 @@ Este repositorio esta na Etapa 9: workflow integrado com leitura, validacao, con
 
 ```powershell
 git clone <REPOSITORIO>
-cd conciliacaoCartoes
+cd <PASTA_DO_REPOSITORIO>
 .\scripts\preparar_ambiente.ps1
 ```
 
 ## Premissas definitivas
 
-- O periodo informado representa a data da venda.
-- A API sera comparada pela data `dataCadastro`; `dataVencimento` sera preservada como informacao auxiliar.
+- O periodo informado representa a data da venda; para debito, a consulta e o matching usam a data de recebimento da operadora.
+- Em credito e Pix, a API e comparada por `dataCadastro` (data da venda). Em debito, ela e comparada por `dataVencimento` (data de recebimento).
 - A saida Cielo da primeira versao tera apenas a aba `Planilha1`, seguindo o modelo LEO.
 - Na QuickPay, os recebimentos bancarios podem ser informados em uma planilha auxiliar agregada por data de recebimento, bandeira e modalidade; ela e gerada a partir dos valores confirmados pelo usuario no chat.
 - Tokens nunca devem ser salvos no repositorio, em logs ou em arquivos de configuracao versionados.
@@ -29,7 +29,7 @@ Gerar somente o relatorio Cielo:
 
 ```powershell
 conciliacao gerar-cielo `
-  --arquivo "arquivos_exemplo/cielo.xlsx" `
+  --arquivo "data/input/cielo.xlsx" `
   --data-inicio 2026-07-14 `
   --data-fim 2026-07-15 `
   --saida "output/cielo"
@@ -47,7 +47,7 @@ Gerar somente o relatorio QuickPay:
 
 ```powershell
 conciliacao gerar-quickpay `
-  --arquivo "arquivos_exemplo/quickpay_preparado.xlsx" `
+  --arquivo "data/input/quickpay.xlsx" `
   --arquivo-recebimentos-quickpay "output/RECEBIMENTOS_BANCARIOS_QUICKPAY.xlsx" `
   --data-inicio 2026-07-13 `
   --data-fim 2026-07-13 `
@@ -85,13 +85,20 @@ Calculos QuickPay:
 
 No workflow integrado, `Sistema`, `Diferenca Sistema` e `Status` sao preenchidos a partir do matching com a API Velo. Nos comandos isolados `gerar-quickpay`, essas colunas permanecem no comportamento anterior.
 
+Organizacao da aba `Conciliação` QuickPay:
+
+- As linhas sao ordenadas por data da venda e modalidade, seguindo o padrao visual da Cielo.
+- `Soma Valor da Venda` e `Soma Valor Líquido` mostram o subtotal no fim de cada bloco continuo de **data da venda + modalidade**. A bandeira nao cria um novo subtotal.
+- A linha `TOTAL` soma tambem `Sistema` e `Diferenca Sistema`.
+- Credito usa os tons de cinza da Cielo, debito usa turquesa e Pix usa amarelo-claro.
+
 Quando `Valor da Venda` for zero, a porcentagem fica em branco e a validacao gera aviso. Diferencas de centavos entre `Taxa` e `Bruto-Liquido` sao preservadas; taxa negativa ou taxa maior que o valor da venda bloqueiam a geracao.
 
 Validar arquivos sem gerar Excel:
 
 ```powershell
 conciliacao validar-cielo `
-  --arquivo "arquivos_exemplo/cielo.xlsx" `
+  --arquivo "data/input/cielo.xlsx" `
   --data-inicio 2026-07-14 `
   --data-fim 2026-07-15
 ```
@@ -241,7 +248,7 @@ valor do sistema Velo
 A chave principal usa:
 
 ```text
-operadora + modalidade + data da venda/dataCadastro + valor
+operadora + modalidade + data aplicavel + valor
 ```
 
 A bandeira entra somente quando existe de forma confiavel nos dois lados. A API ainda nao traz NSU, TID, codigo de autorizacao ou horario; por isso o projeto nao promete pareamento transacional exato quando a chave nao prova a identidade da linha. Nesses casos, o resultado pode ser agregado.
@@ -250,7 +257,8 @@ Regras principais:
 
 - Cielo nunca combina com QuickPay.
 - Credito, debito e Pix nao combinam entre si.
-- `dataCadastro` e a data principal do sistema; `dataVencimento` e auxiliar.
+- Em credito e Pix, a data principal e `dataVenda` da operadora contra `dataCadastro` do sistema.
+- Em debito, a data principal e `dataRecebimento` da operadora contra `dataVencimento` do sistema. Sem data de recebimento, o resultado fica `PENDENTE_DE_DADOS`.
 - Hora da operadora nao entra na chave, porque a API nao fornece horario.
 - `valorTaxaCartao`, taxa, valor liquido e recebido no banco QuickPay nao entram na chave.
 - Valores repetidos sao tratados como multiconjunto.
@@ -305,7 +313,8 @@ Use estas pastas para execucoes locais:
 
 - `data/input/`: arquivos de entrada reais.
 - `data/api_raw/`: respostas brutas da API, sem token.
-- `output/`: planilhas geradas.
+- `planilhas/`: relatorios Excel finais gerados pelo workflow.
+- `output/`: resumos JSON, logs auxiliares e planilhas auxiliares QuickPay.
 - `logs/`: logs de execucao.
 
 Essas pastas sao ignoradas pelo Git, exceto pelos arquivos `.gitkeep`.
