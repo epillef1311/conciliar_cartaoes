@@ -22,6 +22,10 @@ node_modules/
 
 # Real inputs, generated outputs, logs and API audit payloads
 arquivos_exemplo/
+planilhas/
+outputs/
+conciliacao-cartoes-cliente-*.zip
+portfolio-sanitized/
 data/input/**
 data/api_raw/**
 data/processed/**
