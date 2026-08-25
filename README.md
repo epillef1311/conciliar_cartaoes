@@ -10,7 +10,7 @@ Este repositorio esta na Etapa 9: workflow integrado com leitura, validacao, con
 
 ```powershell
 git clone <REPOSITORIO>
-cd <PASTA_DO_REPOSITORIO>
+cd conciliacaoCartoes
 .\scripts\preparar_ambiente.ps1
 ```
 

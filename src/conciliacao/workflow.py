@@ -6,6 +6,7 @@ import json
 import logging
 import shutil
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
 from datetime import date, datetime
@@ -76,8 +77,10 @@ class WorkflowExitCode(StrEnum):
 
 
 class ReconciliationCommand(ModeloDominio):
-    data_inicio: date
-    data_fim: date
+    # Mantidos como compatibilidade da CLI antiga. O fluxo normal deriva as datas
+    # diretamente dos arquivos selecionados.
+    data_inicio: date | None = None
+    data_fim: date | None = None
     arquivo_cielo: Path | None = None
     arquivo_quickpay: Path | None = None
     arquivo_recebimentos_quickpay: Path | None = None
@@ -91,7 +94,13 @@ class ReconciliationCommand(ModeloDominio):
 
     @model_validator(mode="after")
     def validate_command(self) -> ReconciliationCommand:
-        if self.data_inicio > self.data_fim:
+        if (self.data_inicio is None) != (self.data_fim is None):
+            raise ValueError("data-inicio e data-fim devem ser informadas juntas")
+        if (
+            self.data_inicio is not None
+            and self.data_fim is not None
+            and self.data_inicio > self.data_fim
+        ):
             raise ValueError("data-fim nao pode ser anterior a data-inicio")
         if self.arquivo_cielo is None and self.arquivo_quickpay is None:
             raise ValueError("informe pelo menos um arquivo Cielo ou QuickPay")
@@ -114,9 +123,7 @@ class ReconciliationCommand(ModeloDominio):
         if self.diretorio_saida.exists() and not self.diretorio_saida.is_dir():
             raise ValueError(f"diretorio de saida invalido: {self.diretorio_saida}")
         if self.diretorio_planilhas.exists() and not self.diretorio_planilhas.is_dir():
-            raise ValueError(
-                f"diretorio de planilhas invalido: {self.diretorio_planilhas}"
-            )
+            raise ValueError(f"diretorio de planilhas invalido: {self.diretorio_planilhas}")
         if self.diretorio_fixtures_api is not None and not self.diretorio_fixtures_api.is_dir():
             raise ValueError(f"diretorio de fixtures API invalido: {self.diretorio_fixtures_api}")
         return self
@@ -177,10 +184,12 @@ class ReconciliationWorkflow:
         config: VeloApiConfig | None = None,
         transport: HttpTransport | None = None,
         token_provider: TokenProvider | None = None,
+        log_callback: Callable[[str], None] | None = None,
     ) -> None:
         self.config = config
         self.transport = transport
         self.token_provider = token_provider
+        self.log_callback = log_callback
 
     def executar(self, comando: ReconciliationCommand) -> WorkflowResult:
         started = datetime.now(ZoneInfo("America/Sao_Paulo"))
@@ -188,20 +197,22 @@ class ReconciliationWorkflow:
         execution_id = comando.identificador_execucao or _execution_id(started)
         data_conciliacao = started.date()
         log_path = Path("logs") / f"conciliacao_{execution_id}.log"
-        logger = _setup_logger(log_path)
+        logger = _setup_logger(log_path, callback=self.log_callback)
         logger.info("inicio execucao=%s modo=%s", execution_id, _mode(comando).value)
 
         resultado_api = ResultadoApiWorkflow()
         resultado_cielo: ResultadoOperadoraWorkflow | None = None
         resultado_quickpay: ResultadoOperadoraWorkflow | None = None
         registros_por_categoria: dict[CategoriaFiltroVelo, tuple[RegistroSistema, ...]] = {}
+        periodo_global = (started.date(), started.date())
         erros_globais: list[str] = []
         avisos_globais: list[str] = []
 
         try:
             prepared, early_results = self._preparar_operadoras(comando, logger)
             categorias = _categorias_necessarias(prepared)
-            periodos_consulta = _periodos_consulta_por_categoria(comando, prepared)
+            periodos_consulta = _periodos_consulta_por_categoria(prepared)
+            periodo_global = _periodo_global(prepared_periodos=periodos_consulta)
             resultado_api, registros_por_categoria = self._consultar_api(
                 comando,
                 execution_id=execution_id,
@@ -231,8 +242,7 @@ class ReconciliationWorkflow:
             )
         except VeloAuthenticationError as exc:
             message = (
-                "Token Bearer ausente, invalido ou expirado. "
-                "Conclua um novo login para continuar."
+                "Token Bearer ausente, invalido ou expirado. Conclua um novo login para continuar."
             )
             erros_globais.append(message)
             logger.error("falha autenticacao endpoint=%s", exc.endpoint)
@@ -256,6 +266,7 @@ class ReconciliationWorkflow:
             log_path=log_path,
             erros_globais=erros_globais,
             avisos_globais=avisos_globais,
+            periodo=periodo_global,
         )
         self._salvar_resumos(comando, result)
         return result
@@ -340,9 +351,10 @@ class ReconciliationWorkflow:
             except VeloApiError as exc:
                 erros[categoria] = _safe_error(exc)
                 logger.error("api erro categoria=%s endpoint=%s", categoria.value, exc.endpoint)
+        periodo_global = _periodo_global(prepared_periodos=periodos)
         client.save_audit_metadata(
-            period_start=comando.data_inicio,
-            period_end=comando.data_fim,
+            period_start=periodo_global[0],
+            period_end=periodo_global[1],
             categories_requested=categorias,
         )
         arquivos = _audit_files(audit_writer)
@@ -515,16 +527,15 @@ def _preparar_cielo(comando: ReconciliationCommand, logger: logging.Logger) -> _
     leitura = ler_cielo(comando.arquivo_cielo)
     validacao = CieloValidator().validar(
         leitura,
-        data_inicio=comando.data_inicio,
-        data_fim=comando.data_fim,
+        data_inicio=None,
+        data_fim=None,
     )
     relatorio: CieloRelatorioProcessado | None = None
     if validacao.valido:
         relatorio = CieloProcessor().processar(
             leitura,
             validacao,
-            data_inicio=comando.data_inicio,
-            data_fim=comando.data_fim,
+            **_periodo_processamento(leitura.transacoes),
         )
     logger.info("cielo lida transacoes=%s valido=%s", len(leitura.transacoes), validacao.valido)
     return _PreparedOperator(
@@ -548,8 +559,8 @@ def _preparar_quickpay(comando: ReconciliationCommand, logger: logging.Logger) -
     )
     validacao = QuickPayValidator().validar(
         leitura,
-        data_inicio=comando.data_inicio,
-        data_fim=comando.data_fim,
+        data_inicio=None,
+        data_fim=None,
         recebimentos_bancarios=recebimentos,
     )
     relatorio: QuickPayRelatorioProcessado | None = None
@@ -557,8 +568,7 @@ def _preparar_quickpay(comando: ReconciliationCommand, logger: logging.Logger) -
         relatorio = QuickPayProcessor().processar(
             leitura,
             validacao,
-            data_inicio=comando.data_inicio,
-            data_fim=comando.data_fim,
+            **_periodo_processamento(leitura.transacoes),
             recebimentos_bancarios=recebimentos,
         )
     logger.info("quickpay lida transacoes=%s valido=%s", len(leitura.transacoes), validacao.valido)
@@ -593,13 +603,16 @@ def _categorias_necessarias(
 
 
 def _periodos_consulta_por_categoria(
-    comando: ReconciliationCommand,
-    prepared: dict[Operadora, _PreparedOperator],
+    prepared_or_comando: dict[Operadora, _PreparedOperator] | ReconciliationCommand,
+    prepared: dict[Operadora, _PreparedOperator] | None = None,
 ) -> dict[CategoriaFiltroVelo, tuple[date, date]]:
-    """Usa recebimento para débitos e mantém venda para as demais modalidades."""
-    padrao = (comando.data_inicio, comando.data_fim)
-    datas_debito: dict[CategoriaFiltroVelo, list[date]] = {}
-    for item in prepared.values():
+    """Deriva cada consulta dos arquivos: recebimento no débito e venda nos demais."""
+    # A forma com dois argumentos preserva a compatibilidade de integrações internas antigas.
+    itens = prepared if prepared is not None else prepared_or_comando
+    if not isinstance(itens, dict):
+        raise TypeError("prepared deve conter as operadoras lidas")
+    datas_por_categoria: dict[CategoriaFiltroVelo, list[date]] = {}
+    for item in itens.values():
         if item.relatorio is None:
             continue
         transacoes = (
@@ -608,25 +621,53 @@ def _periodos_consulta_por_categoria(
             else _relatorio_quickpay_transacoes(item.relatorio)
         )
         for transacao in transacoes:
-            if transacao.modalidade is not Modalidade.DEBITO or transacao.data_recebimento is None:
+            if transacao.modalidade is None:
                 continue
             categoria = next(
                 (
                     chave
                     for chave, info in CATEGORIAS_VELO.items()
                     if info.operadora is transacao.operadora
-                    and info.modalidade is Modalidade.DEBITO
+                    and info.modalidade is transacao.modalidade
                 ),
                 None,
             )
             if categoria is not None:
-                datas_debito.setdefault(categoria, []).append(transacao.data_recebimento)
+                data_consulta = (
+                    transacao.data_recebimento
+                    if transacao.modalidade is Modalidade.DEBITO
+                    else transacao.data_venda
+                )
+                if data_consulta is not None:
+                    datas_por_categoria.setdefault(categoria, []).append(data_consulta)
 
     periodos: dict[CategoriaFiltroVelo, tuple[date, date]] = {}
-    for categoria in _categorias_necessarias(prepared):
-        datas = datas_debito.get(categoria, [])
-        periodos[categoria] = (min(datas), max(datas)) if datas else padrao
+    for categoria in _categorias_necessarias(itens):
+        datas = datas_por_categoria.get(categoria, [])
+        if not datas:
+            raise ValueError(f"nao foi possivel derivar periodo para {categoria.value}")
+        periodos[categoria] = (min(datas), max(datas))
     return periodos
+
+
+def _periodo_processamento(transacoes: list[TransacaoOperadora]) -> dict[str, date]:
+    if not transacoes:
+        raise ValueError("arquivo sem transacoes para derivar periodo")
+    return {
+        "data_inicio": min(item.data_venda for item in transacoes),
+        "data_fim": max(item.data_venda for item in transacoes),
+    }
+
+
+def _periodo_global(
+    *, prepared_periodos: dict[CategoriaFiltroVelo, tuple[date, date]]
+) -> tuple[date, date]:
+    if not prepared_periodos:
+        return date.today(), date.today()
+    return (
+        min(inicio for inicio, _ in prepared_periodos.values()),
+        max(fim for _, fim in prepared_periodos.values()),
+    )
 
 
 def _categorias_transacoes(
@@ -745,10 +786,7 @@ def _salvar_resultado_operadora(
         return None
     directory = comando.diretorio_saida / ("cielo" if operadora is Operadora.CIELO else "quickpay")
     prefix = "CIELO" if operadora is Operadora.CIELO else "QUICKPAY"
-    filename = (
-        f"{prefix}_CONCILIACAO_{comando.data_inicio.isoformat()}_A_"
-        f"{comando.data_fim.isoformat()}_RESULTADO.json"
-    )
+    filename = f"{prefix}_CONCILIACAO_{execution_id}_RESULTADO.json"
     path = _resolve_output(
         directory / filename,
         sobrescrever=comando.sobrescrever,
@@ -842,6 +880,7 @@ def _montar_resultado(
     log_path: Path,
     erros_globais: list[str],
     avisos_globais: list[str],
+    periodo: tuple[date, date],
 ) -> WorkflowResult:
     status = _overall_status(resultado_cielo, resultado_quickpay, erros_globais)
     return WorkflowResult(
@@ -849,7 +888,7 @@ def _montar_resultado(
         inicio_execucao=started,
         fim_execucao=finished,
         duracao_segundos=duration,
-        periodo={"data_inicio": comando.data_inicio, "data_fim": comando.data_fim},
+        periodo={"data_inicio": periodo[0], "data_fim": periodo[1]},
         modo=_mode(comando),
         resultado_cielo=resultado_cielo,
         resultado_quickpay=resultado_quickpay,
@@ -1129,7 +1168,23 @@ def _safe_error(exc: Exception) -> str:
     return text
 
 
-def _setup_logger(path: Path) -> logging.Logger:
+class _CallbackLogHandler(logging.Handler):
+    """Encaminha mensagens seguras ao consumidor da interface, sem rastros de excecao."""
+
+    def __init__(self, callback: Callable[[str], None]) -> None:
+        super().__init__()
+        self._callback = callback
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self._callback(f"{record.levelname}: {record.getMessage()}")
+        except Exception:
+            self.handleError(record)
+
+
+def _setup_logger(
+    path: Path, *, callback: Callable[[str], None] | None = None
+) -> logging.Logger:
     path.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(f"conciliacao.workflow.{path.stem}")
     logger.setLevel(logging.INFO)
@@ -1137,6 +1192,8 @@ def _setup_logger(path: Path) -> logging.Logger:
     handler = logging.FileHandler(path, encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     logger.handlers = [handler]
+    if callback is not None:
+        logger.addHandler(_CallbackLogHandler(callback))
     return logger
 
 

@@ -68,8 +68,13 @@ def build_parser() -> argparse.ArgumentParser:
         "processar",
         help="Executa o workflow integrado de conciliacao.",
     )
-    processar.add_argument("--data-inicio", required=True, type=_date_value)
-    processar.add_argument("--data-fim", required=True, type=_date_value)
+    processar.add_argument(
+        "--data-inicio",
+        required=False,
+        type=_date_value,
+        help="Opcional e mantido por compatibilidade; o workflow deriva as datas do arquivo.",
+    )
+    processar.add_argument("--data-fim", required=False, type=_date_value)
     processar.add_argument("--arquivo-cielo", required=False, type=Path)
     processar.add_argument("--arquivo-quickpay", required=False, type=Path)
     processar.add_argument("--arquivo-recebimentos-quickpay", required=False, type=Path)
@@ -193,7 +198,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _processar(args: argparse.Namespace) -> int:
-    if args.data_fim < args.data_inicio:
+    if (args.data_inicio is None) != (args.data_fim is None):
+        print("Erro: data-inicio e data-fim devem ser informadas juntas.")
+        return 1
+    if (
+        args.data_inicio is not None
+        and args.data_fim is not None
+        and args.data_fim < args.data_inicio
+    ):
         print("Erro: data-fim nao pode ser anterior a data-inicio.")
         return 1
     if args.arquivo_cielo is None and args.arquivo_quickpay is None:
