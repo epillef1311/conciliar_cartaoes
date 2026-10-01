@@ -410,8 +410,19 @@ def _gerar_quickpay(args: argparse.Namespace) -> int:
                 f"Valor liquido: R$ {resumo.total_liquido}",
                 f"Bruto-Liquido: R$ {resumo.total_bruto_liquido}",
                 f"Diferenca: R$ {resumo.total_diferenca_taxa}",
-                f"Recebido no banco QuickPay: R$ {resumo.total_recebido_banco}",
-                f"Diferenca banco-liquido: R$ {resumo.diferenca_total_banco_liquido}",
+                (
+                    f"Recebido no banco QuickPay: R$ {resumo.total_recebido_banco}"
+                    if resumo.total_recebido_banco is not None
+                    else (
+                        "Conferência bancária não realizada: "
+                        "recebimentos não informados ou incompletos."
+                    )
+                ),
+                (
+                    f"Diferenca banco-liquido: R$ {resumo.diferenca_total_banco_liquido}"
+                    if resumo.diferenca_total_banco_liquido is not None
+                    else "Diferenca banco-liquido: não calculada."
+                ),
                 "",
                 f"Valor da Venda zero: {resumo.valor_bruto_zero}",
                 f"Validacao da saida: {'OK' if exportacao.validacao_saida_ok else 'FALHA'}",

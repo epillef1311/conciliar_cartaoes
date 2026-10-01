@@ -1,0 +1,8 @@
+# Segredos e artefatos locais deste experimento nunca devem ser versionados.
+.env
+.venv/
+__pycache__/
+*.py[cod]
+
+output/*
+!output/.gitkeep

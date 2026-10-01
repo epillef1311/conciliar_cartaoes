@@ -54,7 +54,9 @@ conciliacao gerar-quickpay `
   --saida "output/quickpay"
 ```
 
-O QuickPay aceita XLSX e arquivos HTML exportados com extensao `.xls`. Quando o relatorio nao tiver o valor bancario por venda, informe os totais confirmados no chat e gere a planilha auxiliar com `gerar-recebimentos-quickpay`. A conciliacao bancaria e feita por grupo de data de recebimento, bandeira e modalidade, e aparece na aba `Conciliação Bancária` do relatorio final. Arquivos antigos que ja possuem `RECEBIDO NO BANCO QUICKPAY` por venda continuam aceitos.
+O QuickPay aceita XLSX e arquivos HTML exportados com extensao `.xls`. A coluna `RECEBIDO NO BANCO QUICKPAY` e a planilha auxiliar sao opcionais: sem recebimentos, a conciliacao QuickPay × Velo continua normalmente. O relatorio e o resumo indicam conferencia bancaria nao realizada, com total recebido e diferenca bancaria ausentes (nunca zero presumido). Recebimentos parciais preservam os valores conhecidos, mas nao geram total ou divergencia bancaria global. Valores informados invalidos ou negativos continuam impedindo a exportacao.
+
+Para conferir o banco quando o relatorio nao tiver o valor bancario por venda, informe os totais confirmados no chat e gere a planilha auxiliar com `gerar-recebimentos-quickpay`. A conciliacao bancaria e feita por grupo de data de recebimento, bandeira e modalidade, e aparece na aba `Conciliação Bancária` do relatorio final. Arquivos antigos que ja possuem `RECEBIDO NO BANCO QUICKPAY` por venda continuam aceitos. A planilha original nunca deve ser alterada para incluir recebimentos.
 
 Formato para informar cada grupo no chat: `YYYY-MM-DD|Bandeira|Modalidade|Valor`. Exemplo: `2026-07-20|Visa|credito|1250,32`.
 

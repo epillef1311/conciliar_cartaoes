@@ -1,5 +1,10 @@
 # Plano de Implementação - Automação de Conciliação de Caixa
 
+> Atualização de 01/10/2026: os recebimentos bancários QuickPay são opcionais.
+> A ausência da coluna ou da planilha auxiliar permite conciliar QuickPay × Velo;
+> a conferência bancária fica não realizada, com total e diferença ausentes.
+> Esta decisão substitui as exigências de coluna obrigatória descritas abaixo.
+
 ## 1. Escopo desta etapa
 
 Esta etapa é apenas de entendimento e planejamento. Não foram feitas requisições reais à API, não foram alterados os arquivos Excel de exemplo e não foram armazenadas credenciais, tokens ou respostas de API.

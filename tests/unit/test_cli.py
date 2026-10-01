@@ -68,7 +68,7 @@ def test_processar_rejects_token_argument():
         raise AssertionError("CLI nao deve aceitar --token")
 
 
-def test_validar_quickpay_reports_invalid_file(capsys):
+def test_validar_quickpay_accepts_file_without_bank_receipts(capsys):
     exit_code = main(
         [
             "validar-quickpay",
@@ -82,9 +82,9 @@ def test_validar_quickpay_reports_invalid_file(capsys):
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 1
+    assert exit_code == 0
     assert "QUICKPAY" in captured.out
-    assert "QUICKPAY_COLUNA_RECEBIDO_AUSENTE" in captured.out
+    assert "Conferência bancária não realizada" in captured.out
 
 
 def test_validar_combined_shows_both_results(capsys):
@@ -103,7 +103,7 @@ def test_validar_combined_shows_both_results(capsys):
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 1
+    assert exit_code == 0
     assert "CIELO" in captured.out
     assert "QUICKPAY" in captured.out
 
@@ -187,13 +187,13 @@ def test_processar_modo_simulado_com_cielo_usa_fixtures(tmp_path, capsys):
             "2026-07-13",
             "--data-fim",
             "2026-07-13",
-                "--arquivo-cielo",
-                "tests/fixtures/cielo/cielo_valido.xlsx",
-                "--saida",
-                str(tmp_path),
-                "--diretorio-planilhas",
-                str(tmp_path / "planilhas"),
-                "--salvar-auditoria",
+            "--arquivo-cielo",
+            "tests/fixtures/cielo/cielo_valido.xlsx",
+            "--saida",
+            str(tmp_path),
+            "--diretorio-planilhas",
+            str(tmp_path / "planilhas"),
+            "--salvar-auditoria",
         ]
     )
 

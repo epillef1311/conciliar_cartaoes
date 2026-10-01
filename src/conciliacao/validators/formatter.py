@@ -33,6 +33,10 @@ def _formatar_resultado(resultado: ResultadoValidacao) -> str:
             f"Erros: {resultado.quantidade_erros}",
         ]
     )
+    if totais.get("conferencia_bancaria") == "NAO_REALIZADA":
+        linhas.append(
+            "Conferência bancária não realizada: recebimentos não informados ou incompletos."
+        )
     for erro in resultado.erros[:5]:
         linhas.append(f"Erro: {erro.codigo} - {erro.mensagem}")
         if erro.aba:
@@ -45,6 +49,8 @@ def _formatar_resultado(resultado: ResultadoValidacao) -> str:
 
 
 def _moeda(value: Any) -> str:
+    if value is None:
+        return "não informado"
     if not isinstance(value, Decimal):
         return str(value)
     sinal = "-" if value < 0 else ""

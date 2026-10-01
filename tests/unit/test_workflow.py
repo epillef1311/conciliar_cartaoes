@@ -94,6 +94,49 @@ def test_workflow_simulado_processa_ambas_operadoras_e_preenche_quickpay(tmp_pat
     assert "token-teste-nao-real" not in combined
 
 
+def test_workflow_quickpay_without_bank_receipts_matches_velo(tmp_path):
+    source = tmp_path / "quickpay_sem_banco.xlsx"
+    workbook = load_workbook("tests/fixtures/quickpay/quickpay_valido.xlsx")
+    sheet = workbook.active
+    for cell in sheet[2]:
+        if cell.value == "RECEBIDO NO BANCO QUICKPAY":
+            sheet.delete_cols(cell.column)
+            break
+    workbook.save(source)
+    workbook.close()
+    result = ReconciliationWorkflow().executar(
+        ReconciliationCommand(
+            data_inicio="2026-07-13",
+            data_fim="2026-07-13",
+            arquivo_quickpay=source,
+            diretorio_saida=tmp_path / "output",
+            diretorio_planilhas=tmp_path / "planilhas",
+            modo_simulado=True,
+            diretorio_fixtures_api=_api_fixtures(tmp_path),
+            salvar_auditoria=False,
+            identificador_execucao="quickpay_sem_banco",
+        )
+    )
+    assert result.status_geral is WorkflowStatus.SUCESSO
+    operator = result.resultado_quickpay
+    assert operator is not None
+    assert operator.hash_preservado
+    assert operator.resumo_matching["resumo"]["conciliados"] == 2
+    assert operator.resumo_processamento["total_recebido_banco"] is None
+    assert operator.resumo_processamento["diferenca_total_banco_liquido"] is None
+    assert operator.resumo_processamento["conferencia_bancaria"] == "NAO_REALIZADA"
+    generated = load_workbook(operator.arquivo_saida)
+    try:
+        ws = generated[SHEET_NAME]
+        assert ws["L3"].value == "NÃO INFORMADO"
+        assert ws["L4"].value == "NÃO INFORMADO"
+        assert "CONFERÊNCIA BANCÁRIA NÃO REALIZADA" in ws["L5"].value
+        assert ws["O3"].value == "CONCILIADO"
+        assert "Conciliação Bancária" not in generated.sheetnames
+    finally:
+        generated.close()
+
+
 def test_workflow_somente_cielo_nao_exige_quickpay(tmp_path):
     command = ReconciliationCommand(
         data_inicio="2026-07-13",
@@ -121,7 +164,7 @@ def test_workflow_quickpay_invalida_nao_bloqueia_cielo(tmp_path):
         data_inicio="2026-07-13",
         data_fim="2026-07-13",
         arquivo_cielo=Path("tests/fixtures/cielo/cielo_valido.xlsx"),
-        arquivo_quickpay=Path("tests/fixtures/quickpay/quickpay_html.xls"),
+        arquivo_quickpay=Path("tests/fixtures/quickpay/quickpay_sem_tabela.xlsx"),
         diretorio_saida=tmp_path / "output",
         diretorio_planilhas=tmp_path / "planilhas",
         modo_simulado=True,
@@ -139,7 +182,7 @@ def test_workflow_quickpay_invalida_nao_bloqueia_cielo(tmp_path):
     assert result.resultado_cielo.arquivo_saida is not None
     assert result.resultado_quickpay is not None
     assert result.resultado_quickpay.status is WorkflowStatus.FALHA
-    assert "QUICKPAY_COLUNA_RECEBIDO_AUSENTE" in result.resultado_quickpay.erros
+    assert result.resultado_quickpay.erros
 
 
 def test_workflow_falha_categoria_api_marca_pendente_sem_bloquear_excel(tmp_path):
@@ -168,9 +211,7 @@ def test_workflow_falha_categoria_api_marca_pendente_sem_bloquear_excel(tmp_path
     assert result.resultado_cielo.arquivo_saida.exists()
 
 
-def test_workflow_erro_401_nao_gera_relatorio_e_retorna_codigo_autenticacao(
-    tmp_path, monkeypatch
-):
+def test_workflow_erro_401_nao_gera_relatorio_e_retorna_codigo_autenticacao(tmp_path, monkeypatch):
     monkeypatch.delenv("VELO_BEARER_TOKEN", raising=False)
     transport = FakeVeloTransport(
         {

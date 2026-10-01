@@ -134,7 +134,7 @@ def test_generates_current_local_cielo_report_when_available(tmp_path):
 @pytest.mark.skipif(
     not QUICKPAY_HTML.exists(), reason="arquivo QuickPay HTML real nao esta disponivel localmente"
 )
-def test_reads_local_quickpay_html_example_without_modifying_it():
+def test_reads_local_quickpay_html_example_without_modifying_it(tmp_path):
     result = ler_quickpay(QUICKPAY_HTML)
 
     assert result.formato_detectado is FormatoArquivo.HTML
@@ -142,24 +142,27 @@ def test_reads_local_quickpay_html_example_without_modifying_it():
     assert result.cabecalhos_normalizados[0] == "data da venda"
 
     validation = QuickPayValidator().validar(result)
-    assert not validation.valido
-    assert {error.codigo for error in validation.erros} >= {"QUICKPAY_COLUNA_RECEBIDO_AUSENTE"}
+    assert validation.valido
+    assert validation.totais_calculados["total_recebido_banco"] is None
 
-    output_dir = result.caminho_arquivo.parent / "__nao_deve_existir__"
-    assert main(
-        [
-            "gerar-quickpay",
-            "--arquivo",
-            str(QUICKPAY_HTML),
-            "--data-inicio",
-            "2026-07-13",
-            "--data-fim",
-            "2026-07-13",
-            "--saida",
-            str(output_dir),
-        ]
-    ) == 1
-    assert not output_dir.exists()
+    output_dir = tmp_path / "quickpay"
+    assert (
+        main(
+            [
+                "gerar-quickpay",
+                "--arquivo",
+                str(QUICKPAY_HTML),
+                "--data-inicio",
+                "2026-07-13",
+                "--data-fim",
+                "2026-07-13",
+                "--saida",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+    assert output_dir.exists()
 
 
 @pytest.mark.local
@@ -175,8 +178,8 @@ def test_reads_local_quickpay_xlsx_and_ignores_legacy_bank_block():
     assert result.avisos_leitura[0].codigo == "COLUNA_BANCO_QUICKPAY_AUSENTE"
 
     validation = QuickPayValidator().validar(result)
-    assert not validation.valido
-    assert {error.codigo for error in validation.erros} >= {"QUICKPAY_COLUNA_RECEBIDO_AUSENTE"}
+    assert validation.valido
+    assert validation.totais_calculados["total_recebido_banco"] is None
 
 
 @pytest.mark.local

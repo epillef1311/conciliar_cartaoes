@@ -181,7 +181,7 @@ def _escrever_linha(
         f'=IF(F{row}=0,"",1-(H{row}/F{row}))',
         linha.recebido_banco
         if linha.recebido_banco is not None
-        else "VER ABA CONCILIAÇÃO BANCÁRIA",
+        else ("VER ABA CONCILIAÇÃO BANCÁRIA" if linha.grupo_bancario else "NÃO INFORMADO"),
         sistema,
         diferenca_sistema,
         status,
@@ -202,7 +202,11 @@ def _escrever_total_geral(worksheet: Worksheet, relatorio: QuickPayRelatorioProc
         12,
         f"=SUM('{BANK_SHEET_NAME}'!F3:F{2 + len(relatorio.grupos_bancarios)})"
         if relatorio.grupos_bancarios
-        else f"=SUM(L3:L{last_transaction})",
+        else (
+            f"=SUM(L3:L{last_transaction})"
+            if relatorio.resumo.total_recebido_banco is not None
+            else "CONFERÊNCIA BANCÁRIA NÃO REALIZADA: RECEBIMENTOS NÃO INFORMADOS OU INCOMPLETOS"
+        ),
     )
 
 
@@ -456,7 +460,11 @@ def _validar_formulas(
     expected_bank = (
         f"=SUM('{BANK_SHEET_NAME}'!F3:F{2 + len(relatorio.grupos_bancarios)})"
         if relatorio.grupos_bancarios
-        else f"=SUM(L3:L{last})"
+        else (
+            f"=SUM(L3:L{last})"
+            if relatorio.resumo.total_recebido_banco is not None
+            else "CONFERÊNCIA BANCÁRIA NÃO REALIZADA: RECEBIMENTOS NÃO INFORMADOS OU INCOMPLETOS"
+        )
     )
     if worksheet.cell(total, 12).value != expected_bank:
         raise ValueError(f"formula total QuickPay invalida em L{total}")
@@ -508,6 +516,7 @@ def _validar_valores(
         raise ValueError("total liquido QuickPay exportado diverge do processamento")
     if (
         not relatorio.grupos_bancarios
+        and relatorio.resumo.total_recebido_banco is not None
         and quantize_money(recebido) != relatorio.resumo.total_recebido_banco
     ):
         raise ValueError("total recebido no banco QuickPay diverge do processamento")

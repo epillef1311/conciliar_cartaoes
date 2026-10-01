@@ -117,7 +117,7 @@ def test_quickpay_missing_and_duplicated_bank_column():
         )
     )
 
-    assert "QUICKPAY_COLUNA_RECEBIDO_AUSENTE" in _codigos(missing)
+    assert "QUICKPAY_COLUNA_RECEBIDO_AUSENTE" not in _codigos(missing)
     assert "QUICKPAY_COLUNA_RECEBIDO_DUPLICADA" in _codigos(duplicated)
 
 
@@ -131,7 +131,10 @@ def test_quickpay_empty_invalid_negative_and_formula_bank_values():
         _resultado(_quickpay_tx(banco=None, banco_raw="#DIV/0!"))
     )
 
-    assert "QUICKPAY_RECEBIDO_VAZIO" in _codigos(empty)
+    assert empty.valido
+    assert "QUICKPAY_CONFERENCIA_BANCARIA_NAO_REALIZADA" in _codigos(empty)
+    assert empty.totais_calculados["total_recebido_banco"] is None
+    assert empty.totais_calculados["diferenca_total_banco_liquido"] is None
     assert "QUICKPAY_RECEBIDO_INVALIDO" in _codigos(invalid)
     assert "QUICKPAY_RECEBIDO_NEGATIVO" in _codigos(negative)
     assert "QUICKPAY_RECEBIDO_INVALIDO" in _codigos(formula_error)

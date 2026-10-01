@@ -48,9 +48,7 @@ class QuickPayValidator:
             data_inicio=data_inicio,
             data_fim=data_fim,
         )
-        erros.extend(
-            self._validar_estrutura(resultado, exigir_coluna_banco=recebimentos_bancarios is None)
-        )
+        erros.extend(self._validar_estrutura(resultado))
         for transacao in resultado.transacoes:
             if recebimentos_bancarios is None:
                 erros.extend(self._validar_recebido_banco(resultado, transacao))
@@ -62,6 +60,21 @@ class QuickPayValidator:
             if recebimentos_bancarios is None:
                 avisos.extend(self._avisos_transacao(resultado, transacao))
         avisos.extend(self._validar_duplicidade(resultado))
+        if recebimentos_bancarios is None and any(
+            _recebido_banco(t) is None for t in resultado.transacoes
+        ):
+            avisos.append(
+                alerta(
+                    codigo="QUICKPAY_CONFERENCIA_BANCARIA_NAO_REALIZADA",
+                    mensagem=(
+                        "Conferência bancária não realizada: "
+                        "recebimentos não informados ou incompletos."
+                    ),
+                    severidade=SeveridadeAlerta.AVISO,
+                    arquivo=resultado.caminho_arquivo,
+                    aba=resultado.nome_aba_ou_tabela,
+                )
+            )
         totais = self._totais(resultado, recebimentos_bancarios=recebimentos_bancarios)
         return montar_resultado(
             resultado,
@@ -78,9 +91,7 @@ class QuickPayValidator:
             },
         )
 
-    def _validar_estrutura(
-        self, resultado: ResultadoLeitura, *, exigir_coluna_banco: bool
-    ) -> list[AlertaValidacao]:
+    def _validar_estrutura(self, resultado: ResultadoLeitura) -> list[AlertaValidacao]:
         required = {
             "Data da venda": "QUICKPAY_DATA_VENDA_AUSENTE",
             "Data de recebimento": "QUICKPAY_DATA_RECEBIMENTO_AUSENTE",
@@ -106,20 +117,7 @@ class QuickPayValidator:
                 )
 
         bank_count = contagem_cabecalho(resultado, BANCO_HEADER)
-        if not exigir_coluna_banco:
-            return erros
-        if bank_count == 0:
-            erros.append(
-                alerta(
-                    codigo="QUICKPAY_COLUNA_RECEBIDO_AUSENTE",
-                    mensagem="Coluna RECEBIDO NO BANCO QUICKPAY ausente na tabela.",
-                    severidade=SeveridadeAlerta.CRITICO,
-                    arquivo=resultado.caminho_arquivo,
-                    aba=resultado.nome_aba_ou_tabela,
-                    contexto={"cabecalho_esperado": BANCO_HEADER},
-                )
-            )
-        elif bank_count > 1:
+        if bank_count > 1:
             erros.append(
                 alerta(
                     codigo="QUICKPAY_COLUNA_RECEBIDO_DUPLICADA",
@@ -138,15 +136,14 @@ class QuickPayValidator:
         banco = _recebido_banco(transacao)
         raw = valor_original(transacao, BANCO_HEADER)
         if banco is None:
-            codigo = (
-                "QUICKPAY_RECEBIDO_VAZIO" if raw in {None, ""} else "QUICKPAY_RECEBIDO_INVALIDO"
-            )
+            if raw in {None, ""}:
+                return []
             return [
                 alerta_transacao(
                     resultado,
                     transacao,
                     "recebido_banco",
-                    codigo=codigo,
+                    codigo="QUICKPAY_RECEBIDO_INVALIDO",
                     mensagem="Valor recebido no banco QuickPay ausente ou invalido.",
                     severidade=SeveridadeAlerta.ERRO,
                     valor_recebido=raw,
@@ -308,9 +305,15 @@ class QuickPayValidator:
                 if valor is not None
             ]
         )
-        totais["total_recebido_banco"] = sum_money(recebidos_validos)
-        totais["diferenca_total_banco_liquido"] = quantize_money(
-            totais["total_recebido_banco"] - totais["total_liquido"]
+        completo = recebimentos_bancarios is not None or len(recebidos_validos) == len(
+            resultado.transacoes
+        )
+        totais["conferencia_bancaria"] = "REALIZADA" if completo else "NAO_REALIZADA"
+        totais["total_recebido_banco"] = sum_money(recebidos_validos) if completo else None
+        totais["diferenca_total_banco_liquido"] = (
+            quantize_money(totais["total_recebido_banco"] - totais["total_liquido"])
+            if completo
+            else None
         )
         totais["quantidade_por_bandeira"] = agrupar_quantidade_por_chave(
             resultado.transacoes, "bandeira"

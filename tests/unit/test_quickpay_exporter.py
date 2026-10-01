@@ -86,6 +86,35 @@ def test_export_organizes_by_brand_and_uses_cielo_colors(tmp_path):
         workbook.close()
 
 
+def test_partial_bank_receipts_preserve_known_values_without_false_total(tmp_path):
+    reading = ler_quickpay("tests/fixtures/quickpay/quickpay_valido.xlsx")
+    tx = reading.transacoes[0]
+    raw = dict(tx.dados_originais)
+    raw.pop("recebido_no_banco_quickpay_normalizado")
+    raw["valores"] = {
+        key: value
+        for key, value in raw["valores"].items()
+        if not key.startswith("RECEBIDO NO BANCO QUICKPAY")
+    }
+    reading.transacoes[0] = tx.model_copy(update={"dados_originais": raw})
+    validation = QuickPayValidator().validar(reading)
+    assert validation.valido
+    report = QuickPayProcessor().processar(
+        reading, validation, data_inicio=date(2026, 7, 13), data_fim=date(2026, 7, 13)
+    )
+    assert report.resumo.total_recebido_banco is None
+    assert report.resumo.diferenca_total_banco_liquido is None
+    result = QuickPayExporter().exportar(report, diretorio_saida=tmp_path)
+    wb = load_workbook(result.caminho_saida)
+    try:
+        values = [wb[SHEET_NAME].cell(row, 12).value for row in (3, 4)]
+        assert "NÃO INFORMADO" in values
+        assert any(isinstance(value, (int, float)) for value in values)
+        assert "CONFERÊNCIA BANCÁRIA NÃO REALIZADA" in wb[SHEET_NAME]["L5"].value
+    finally:
+        wb.close()
+
+
 def test_export_preserves_quickpay_bank_values_and_one_cent_differences(tmp_path):
     relatorio = _relatorio_fixture()
     result = QuickPayExporter().exportar(relatorio, diretorio_saida=tmp_path)

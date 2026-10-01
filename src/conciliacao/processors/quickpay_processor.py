@@ -54,9 +54,10 @@ class QuickPayResumoProcessamento:
     total_liquido: Decimal
     total_bruto_liquido: Decimal
     total_diferenca_taxa: Decimal
-    total_recebido_banco: Decimal
-    diferenca_total_banco_liquido: Decimal
+    total_recebido_banco: Decimal | None
+    diferenca_total_banco_liquido: Decimal | None
     valor_bruto_zero: int
+    conferencia_bancaria: str = "REALIZADA"
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,7 +109,13 @@ class QuickPayProcessor:
         total_recebido = (
             sum_money(grupo.valor_recebido_banco for grupo in grupos)
             if recebimentos_bancarios is not None
-            else sum_money(linha.recebido_banco or Decimal("0.00") for linha in linhas)
+            else (
+                sum_money(
+                    linha.recebido_banco for linha in linhas if linha.recebido_banco is not None
+                )
+                if all(linha.recebido_banco is not None for linha in linhas)
+                else None
+            )
         )
         resumo = QuickPayResumoProcessamento(
             transacoes_lidas=len(leitura.transacoes),
@@ -120,9 +127,12 @@ class QuickPayProcessor:
             total_bruto_liquido=sum_money(linha.bruto_liquido for linha in linhas),
             total_diferenca_taxa=sum_money(linha.diferenca_taxa for linha in linhas),
             total_recebido_banco=total_recebido,
+            conferencia_bancaria="REALIZADA" if total_recebido is not None else "NAO_REALIZADA",
             diferenca_total_banco_liquido=quantize_money(
                 total_recebido - sum_money(linha.transacao.valor_liquido for linha in linhas)
-            ),
+            )
+            if total_recebido is not None
+            else None,
             valor_bruto_zero=sum(
                 1 for linha in linhas if linha.transacao.valor_bruto == Decimal("0.00")
             ),
@@ -159,11 +169,6 @@ def _montar_linha(
     transacao: TransacaoOperadora, *, usar_recebimentos_agregados: bool
 ) -> QuickPayLinhaProcessada:
     recebido_banco = None if usar_recebimentos_agregados else _recebido_banco(transacao)
-    if recebido_banco is None and not usar_recebimentos_agregados:
-        raise QuickPayProcessingError(
-            "transacao QuickPay sem RECEBIDO NO BANCO QUICKPAY valido: "
-            f"linha {transacao.linha_original}"
-        )
     if transacao.taxa_original < Decimal("0.00"):
         raise QuickPayProcessingError(
             f"taxa QuickPay negativa impede exportacao: linha {transacao.linha_original}"

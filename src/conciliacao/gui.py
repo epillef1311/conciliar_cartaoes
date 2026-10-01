@@ -115,7 +115,8 @@ class ConciliacaoWindow(QWidget):
             "Selecione a planilha auxiliar confirmada",
         )
         self.recebimentos.setToolTip(
-            "Deixe vazio se os valores já estiverem no arquivo QuickPay. "
+            "Opcional: sem recebimentos, a conciliação com a Velo continua normalmente; "
+            "a conferência bancária fica pendente. "
             "Use somente a planilha auxiliar com data, bandeira, modalidade e valor confirmados."
         )
         layout.addLayout(form)
@@ -145,7 +146,7 @@ class ConciliacaoWindow(QWidget):
         self.log.setPlaceholderText("O andamento da conciliação será exibido aqui.")
         self.log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.log.setStyleSheet(
-            "QPlainTextEdit { background: #FFFFFF; border: 1px solid #A0A0A0; "
+            "QPlainTextEdit { background: #FFFFFF; color: #202020; border: 1px solid #A0A0A0; "
             "font-family: Consolas, 'Courier New', monospace; font-size: 11px; }"
         )
         layout.addWidget(self.log, 1)
@@ -183,9 +184,7 @@ class ConciliacaoWindow(QWidget):
         self._append_log(f"Arquivo QuickPay: {self.quickpay.text() or '(não informado)'}")
         self._append_log("Período: calculado automaticamente pelas planilhas.")
         self._append_log("Chrome será aberto para o login manual na Velo.")
-        self.status.setText(
-            "Status: preparando arquivos. Aguarde o login manual na Velo."
-        )
+        self.status.setText("Status: preparando arquivos. Aguarde o login manual na Velo.")
         self.thread = WorkflowThread(
             cielo=self.cielo.text(),
             quickpay=self.quickpay.text(),
@@ -242,6 +241,15 @@ class ConciliacaoWindow(QWidget):
             self._append_log(f"Conciliadas: {resumo.get('conciliadas', 0)}")
             self._append_log(f"Pendentes: {resumo.get('pendentes', 0)}")
             self._append_log(f"Arquivo: {operador.arquivo_saida or '(não gerado)'}")
+            if (
+                nome == "QUICKPAY"
+                and (operador.resumo_processamento or {}).get("conferencia_bancaria")
+                == "NAO_REALIZADA"
+            ):
+                self._append_log(
+                    "Conferência bancária não realizada: "
+                    "recebimentos não informados ou incompletos."
+                )
             for erro in operador.erros:
                 self._append_log(f"Erro: {erro}")
         for erro in result.erros_globais:

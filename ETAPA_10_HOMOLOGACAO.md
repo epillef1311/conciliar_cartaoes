@@ -1,5 +1,10 @@
 # Etapa 10 — Homologação Controlada
 
+> Atualização de 01/10/2026: QuickPay deve ser homologada também sem recebimentos
+> bancários. A conciliação com a Velo continua, e a conferência bancária é indicada
+> como não realizada, sem presumir zero nem calcular divergência global.
+> As referências abaixo à coluna obrigatória são históricas e foram substituídas.
+
 Coloque este arquivo na raiz do projeto `conciliacaoCartoes`, ao lado de `AGENTS.md`, `PLANO_IMPLEMENTACAO.md` e `README.md`.
 
 Caminho recomendado:

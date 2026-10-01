@@ -1,5 +1,6 @@
 input:
-  required_bank_received_column: "RECEBIDO NO BANCO QUICKPAY"
+  bank_received_required: false
+  optional_bank_received_column: "RECEBIDO NO BANCO QUICKPAY"
   required_bank_received_column_scope: "transaction_table"
   reject_legacy_bank_received_block: true
   bank_received_association: "same_row"
@@ -27,4 +28,3 @@ matching:
   system_value_column: "Sistema"
   system_difference_formula: "Valor da Venda - Sistema"
   no_monetary_tolerance: true
-

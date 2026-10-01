@@ -1,5 +1,6 @@
 """Carregamento da configuracao da API Velo."""
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -59,6 +60,12 @@ class VeloApiConfig:
 
 def load_velo_api_config(path: str | Path = DEFAULT_CONFIG_PATH) -> VeloApiConfig:
     config_path = Path(path)
+    if (
+        config_path == DEFAULT_CONFIG_PATH
+        and not config_path.is_file()
+        and getattr(sys, "frozen", False)
+    ):
+        config_path = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)) / config_path
     try:
         raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:

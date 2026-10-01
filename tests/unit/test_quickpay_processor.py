@@ -9,6 +9,7 @@ import pytest
 from conciliacao.domain.enums import Modalidade, Operadora, OrigemRegistro
 from conciliacao.domain.models import TransacaoOperadora
 from conciliacao.processors.quickpay_processor import QuickPayProcessingError, QuickPayProcessor
+from conciliacao.quickpay.recebimentos_bancarios import RecebimentoBancarioQuickPay
 from conciliacao.readers.models import FormatoArquivo, MetadadosArquivo, ResultadoLeitura
 from conciliacao.utils.text import normalize_text
 from conciliacao.validators.quickpay_validator import QuickPayValidator
@@ -30,9 +31,7 @@ def _tx(
     return TransacaoOperadora(
         operadora=Operadora.QUICKPAY,
         modalidade=(
-            Modalidade.DEBITO
-            if normalize_text(tipo).comparavel == "debito"
-            else Modalidade.CREDITO
+            Modalidade.DEBITO if normalize_text(tipo).comparavel == "debito" else Modalidade.CREDITO
         ),
         bandeira=bandeira,
         data_venda=venda,
@@ -96,6 +95,31 @@ def _processar(resultado: ResultadoLeitura, inicio: date, fim: date):
     validacao = QuickPayValidator().validar(resultado, data_inicio=inicio, data_fim=fim)
     assert validacao.valido
     return QuickPayProcessor().processar(resultado, validacao, data_inicio=inicio, data_fim=fim)
+
+
+def test_aggregate_bank_receipt_is_not_distributed_to_sales():
+    reading = _resultado(_tx(linha=3), _tx(linha=4))
+    receipts = (
+        RecebimentoBancarioQuickPay(
+            data_recebimento=date(2026, 7, 14),
+            bandeira="Visa",
+            modalidade=Modalidade.CREDITO,
+            valor_recebido=Decimal("243.53"),
+        ),
+    )
+    validation = QuickPayValidator().validar(reading, recebimentos_bancarios=receipts)
+    report = QuickPayProcessor().processar(
+        reading,
+        validation,
+        data_inicio=date(2026, 7, 13),
+        data_fim=date(2026, 7, 13),
+        recebimentos_bancarios=receipts,
+    )
+    assert all(line.recebido_banco is None for line in report.linhas)
+    assert all(line.diferenca_banco is None for line in report.linhas)
+    assert report.resumo.total_recebido_banco == Decimal("243.53")
+    assert report.resumo.diferenca_total_banco_liquido == Decimal("-0.01")
+    assert report.grupos_bancarios[0].status == "DIVERGENCIA BANCO"
 
 
 def test_filters_period_and_counts_outside_transactions():

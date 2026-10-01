@@ -967,6 +967,15 @@ def _processing_summary(
         "total_bruto": relatorio.resumo.total_bruto,
         "total_taxa": relatorio.resumo.total_taxa,
         "total_liquido": relatorio.resumo.total_liquido,
+        **(
+            {
+                "total_recebido_banco": relatorio.resumo.total_recebido_banco,
+                "diferenca_total_banco_liquido": relatorio.resumo.diferenca_total_banco_liquido,
+                "conferencia_bancaria": relatorio.resumo.conferencia_bancaria,
+            }
+            if isinstance(relatorio, QuickPayRelatorioProcessado)
+            else {}
+        ),
     }
 
 
@@ -1182,9 +1191,7 @@ class _CallbackLogHandler(logging.Handler):
             self.handleError(record)
 
 
-def _setup_logger(
-    path: Path, *, callback: Callable[[str], None] | None = None
-) -> logging.Logger:
+def _setup_logger(path: Path, *, callback: Callable[[str], None] | None = None) -> logging.Logger:
     path.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(f"conciliacao.workflow.{path.stem}")
     logger.setLevel(logging.INFO)

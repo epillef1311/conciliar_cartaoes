@@ -6,6 +6,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -73,7 +74,8 @@ def capture_token_from_visible_chrome() -> str:
         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
     )
     endpoint = f"http://127.0.0.1:{port}"
-    print("Chrome aberto. Conclua o login para continuar.", flush=True)
+    if sys.stdout is not None:
+        print("Chrome aberto. Conclua o login para continuar.", flush=True)
 
     try:
         with sync_playwright() as playwright:
@@ -110,7 +112,8 @@ def capture_token_from_visible_chrome() -> str:
                 raise VeloAuthenticationError(
                     "Tempo para login manual excedido.", endpoint="authentication"
                 )
-            print("Login concluido. Iniciando conciliacao.", flush=True)
+            if sys.stdout is not None:
+                print("Login concluido. Iniciando conciliacao.", flush=True)
             return token
     except (PlaywrightError, RuntimeError, ValueError) as exc:
         raise VeloAuthenticationError(
