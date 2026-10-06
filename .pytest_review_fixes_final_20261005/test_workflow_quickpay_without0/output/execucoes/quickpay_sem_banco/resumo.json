@@ -1,0 +1,199 @@
+{
+  "identificador_execucao": "quickpay_sem_banco",
+  "inicio_execucao": "2026-10-05T20:22:17.964068-03:00",
+  "fim_execucao": "2026-10-05T20:22:18.025193-03:00",
+  "duracao_segundos": "0.061",
+  "periodo": {
+    "data_inicio": "2026-07-13",
+    "data_fim": "2026-07-13"
+  },
+  "modo": "SIMULADO",
+  "resultado_cielo": null,
+  "resultado_quickpay": {
+    "operadora": "QUICKPAY",
+    "arquivo_entrada": "C:\\Users\\Administrador\\Documents\\conciliacaoCartoes\\.pytest_review_fixes_final_20261005\\test_workflow_quickpay_without0\\quickpay_sem_banco.xlsx",
+    "hash_entrada": "bbd5e65b245145ca2487ac80ac98df7860159a160bc66920b739140f007aac56",
+    "hash_preservado": true,
+    "quantidade_lida": 2,
+    "quantidade_valida": 2,
+    "categorias_necessarias": [
+      "QUICKPAY_CREDITO"
+    ],
+    "categorias_consultadas": [
+      "QUICKPAY_CREDITO"
+    ],
+    "categorias_ausentes": [],
+    "resumo_validacao": {
+      "valido": true,
+      "quantidade_transacoes": 2,
+      "quantidade_erros": 0,
+      "quantidade_avisos": 4,
+      "erros": [],
+      "avisos": [
+        "COLUNA_BANCO_QUICKPAY_AUSENTE",
+        "QUICKPAY_DIFERENCA_TAXA",
+        "QUICKPAY_DIFERENCA_TAXA",
+        "QUICKPAY_CONFERENCIA_BANCARIA_NAO_REALIZADA"
+      ],
+      "totais_calculados": {
+        "quantidade_transacoes": 2,
+        "total_bruto": "320.83",
+        "total_taxas_originais": "12.72",
+        "total_taxas_normalizadas": "12.72",
+        "total_liquido": "308.03",
+        "total_taxa": "12.72",
+        "total_bruto_liquido": "12.80",
+        "total_diferenca_taxa": "-0.08",
+        "conferencia_bancaria": "NAO_REALIZADA",
+        "total_recebido_banco": null,
+        "diferenca_total_banco_liquido": null,
+        "quantidade_por_bandeira": {
+          "Visa": 1,
+          "MasterCard": 1
+        },
+        "quantidade_por_tipo_pagamento": {
+          "Credito": 2
+        },
+        "totais_por_data_recebimento": {
+          "2026-07-14": {
+            "quantidade": 2,
+            "total_bruto": "320.83",
+            "total_liquido": "308.03",
+            "total_taxa": "12.72"
+          }
+        },
+        "percentuais": [
+          "0.04",
+          "0.04"
+        ]
+      }
+    },
+    "resumo_processamento": {
+      "transacoes_lidas": 2,
+      "transacoes_incluidas": 2,
+      "transacoes_fora_periodo": 0,
+      "total_bruto": "320.83",
+      "total_taxa": "12.72",
+      "total_liquido": "308.03",
+      "total_recebido_banco": null,
+      "diferenca_total_banco_liquido": null,
+      "conferencia_bancaria": "NAO_REALIZADA"
+    },
+    "resumo_matching": {
+      "resumo": {
+        "operadora": "QUICKPAY",
+        "transacoes_operadora": 2,
+        "registros_sistema": 2,
+        "conciliados": 2,
+        "nao_encontrados_no_sistema": 0,
+        "nao_encontrados_na_operadora": 0,
+        "divergencias_quantidade": 0,
+        "divergencias_valor": 0,
+        "ambiguidades": 0,
+        "pendencias_dados": 0,
+        "total_bruto_operadora": "320.83",
+        "total_sistema": "320.83",
+        "total_conciliado": "320.83",
+        "diferenca_total": "0.00",
+        "categorias_consultadas": [
+          "QUICKPAY_CREDITO"
+        ],
+        "categorias_ausentes": [
+          "QUICKPAY_PIX",
+          "QUICKPAY_DEBITO"
+        ]
+      },
+      "agregados": [
+        {
+          "chave_grupo": "QUICKPAY|CREDITO|2026-07-13|126.83|visa",
+          "quantidade_operadora": 1,
+          "quantidade_sistema": 1,
+          "quantidade_conciliada": 1,
+          "excedente_operadora": 0,
+          "excedente_sistema": 0,
+          "total_operadora": "126.83",
+          "total_sistema": "126.83",
+          "diferenca_total": "0.00",
+          "status": "CONCILIADO",
+          "nivel_especificidade": "EXATO_COM_BANDEIRA",
+          "alertas": []
+        },
+        {
+          "chave_grupo": "QUICKPAY|CREDITO|2026-07-13|194.00|mastercard",
+          "quantidade_operadora": 1,
+          "quantidade_sistema": 1,
+          "quantidade_conciliada": 1,
+          "excedente_operadora": 0,
+          "excedente_sistema": 0,
+          "total_operadora": "194.00",
+          "total_sistema": "194.00",
+          "diferenca_total": "0.00",
+          "status": "CONCILIADO",
+          "nivel_especificidade": "EXATO_COM_BANDEIRA",
+          "alertas": []
+        }
+      ],
+      "individuais": [
+        {
+          "linha_operadora": 4,
+          "id_sistema": "QC-002",
+          "status": "CONCILIADO",
+          "valor_operadora": "194.00",
+          "valor_sistema": "194.00",
+          "diferenca": "0.00",
+          "chave_utilizada": "QUICKPAY|CREDITO|2026-07-13|194.00|mastercard",
+          "nivel_confianca": "EXATO_COM_BANDEIRA",
+          "correspondencia_individual_comprovada": true,
+          "correspondencia_atribuida_deterministicamente": false
+        },
+        {
+          "linha_operadora": 3,
+          "id_sistema": "QC-001",
+          "status": "CONCILIADO",
+          "valor_operadora": "126.83",
+          "valor_sistema": "126.83",
+          "diferenca": "0.00",
+          "chave_utilizada": "QUICKPAY|CREDITO|2026-07-13|126.83|visa",
+          "nivel_confianca": "EXATO_COM_BANDEIRA",
+          "correspondencia_individual_comprovada": true,
+          "correspondencia_atribuida_deterministicamente": false
+        }
+      ]
+    },
+    "arquivo_saida": "C:\\Users\\Administrador\\Documents\\conciliacaoCartoes\\.pytest_review_fixes_final_20261005\\test_workflow_quickpay_without0\\planilhas\\2026-10-05\\quickpay\\QUICKPAY_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx",
+    "arquivo_resultado": null,
+    "avisos": [
+      "COLUNA_BANCO_QUICKPAY_AUSENTE",
+      "QUICKPAY_DIFERENCA_TAXA",
+      "QUICKPAY_DIFERENCA_TAXA",
+      "QUICKPAY_CONFERENCIA_BANCARIA_NAO_REALIZADA"
+    ],
+    "erros": [],
+    "status": "SUCESSO"
+  },
+  "resultado_api": {
+    "categorias_solicitadas": [
+      "QUICKPAY_CREDITO"
+    ],
+    "categorias_consultadas": [
+      "QUICKPAY_CREDITO"
+    ],
+    "categorias_com_erro": {},
+    "total_registros": 2,
+    "avisos": [
+      "Erro conhecido 'Dédido' tratado como debito QuickPay."
+    ],
+    "arquivos_auditoria": []
+  },
+  "arquivos_gerados": [
+    "C:\\Users\\Administrador\\Documents\\conciliacaoCartoes\\.pytest_review_fixes_final_20261005\\test_workflow_quickpay_without0\\planilhas\\2026-10-05\\quickpay\\QUICKPAY_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx"
+  ],
+  "arquivos_de_auditoria": [],
+  "logs": [
+    "logs\\conciliacao_quickpay_sem_banco.log"
+  ],
+  "avisos_globais": [],
+  "erros_globais": [],
+  "status_geral": "SUCESSO",
+  "codigo_saida": 0
+}

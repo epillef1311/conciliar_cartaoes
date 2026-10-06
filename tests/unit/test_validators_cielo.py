@@ -216,3 +216,37 @@ def test_cielo_period_warnings_and_pix_or_card_brand_rules():
     assert "TRANSACOES_FORA_DO_PERIODO" in _codigos(outside)
     assert pix.valido
     assert "CIELO_CARTAO_SEM_BANDEIRA" in _codigos(no_brand)
+
+
+def test_cielo_preserves_distinct_installments_of_same_sale():
+    first = _cielo_tx(linha=11, codigo_venda="VENDA-1", nsu_doc="NSU-1")
+    second = _cielo_tx(linha=12, codigo_venda="VENDA-1", nsu_doc="NSU-1")
+    first.dados_originais["campos_cielo"]["numero_parcela"] = "01"
+    second.dados_originais["campos_cielo"]["numero_parcela"] = "02"
+    reading = _resultado(first, second)
+    result = CieloValidator().validar(reading)
+    assert result.valido
+    assert len(reading.transacoes) == 2
+    assert result.totais_calculados["total_bruto"] == Decimal("253.66")
+
+
+def test_cielo_same_installment_still_fails_with_line_numbers():
+    first = _cielo_tx(linha=11, codigo_venda="VENDA-1", nsu_doc="NSU-1")
+    second = _cielo_tx(linha=12, codigo_venda="VENDA-1", nsu_doc="NSU-1")
+    first.dados_originais["campos_cielo"]["numero_parcela"] = "01"
+    second.dados_originais["campos_cielo"]["numero_parcela"] = "1"
+    result = CieloValidator().validar(_resultado(first, second))
+    assert not result.valido
+    duplicate = next(
+        error for error in result.erros if error.codigo == "CIELO_CODIGO_VENDA_DUPLICADO"
+    )
+    assert "[11, 12]" in duplicate.mensagem
+    assert duplicate.linha == 11
+
+
+def test_cielo_missing_installment_is_not_inferred():
+    first = _cielo_tx(linha=11, codigo_venda="VENDA-1")
+    second = _cielo_tx(linha=12, codigo_venda="VENDA-1")
+    first.dados_originais["campos_cielo"]["numero_parcela"] = "01"
+    result = CieloValidator().validar(_resultado(first, second))
+    assert "CIELO_CODIGO_VENDA_DUPLICADO" in _codigos(result)

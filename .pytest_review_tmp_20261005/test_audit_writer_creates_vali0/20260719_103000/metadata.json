@@ -1,0 +1,10 @@
+{
+  "executed_at": "2026-07-19T10:30:00-03:00",
+  "period_start": "2026-07-14",
+  "period_end": "2026-07-15",
+  "intervalo_dia": -1,
+  "is_compensado": 0,
+  "categories_requested": [
+    "CIELO_CREDITO"
+  ]
+}

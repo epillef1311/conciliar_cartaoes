@@ -1,0 +1,214 @@
+{
+  "identificador_execucao": "20260719_120000_parcial",
+  "inicio_execucao": "2026-10-05T17:37:01.698246-03:00",
+  "fim_execucao": "2026-10-05T17:37:01.768419-03:00",
+  "duracao_segundos": "0.07",
+  "periodo": {
+    "data_inicio": "2026-07-13",
+    "data_fim": "2026-07-13"
+  },
+  "modo": "SIMULADO",
+  "resultado_cielo": {
+    "operadora": "CIELO",
+    "arquivo_entrada": "tests\\fixtures\\cielo\\cielo_valido.xlsx",
+    "hash_entrada": "4591ad9e1535423c4f5752fae8e69b7ae7676529bd68b6341ff40549f72e4f98",
+    "hash_preservado": true,
+    "quantidade_lida": 2,
+    "quantidade_valida": 2,
+    "categorias_necessarias": [
+      "CIELO_CREDITO",
+      "CIELO_PIX"
+    ],
+    "categorias_consultadas": [
+      "CIELO_CREDITO",
+      "CIELO_PIX"
+    ],
+    "categorias_ausentes": [],
+    "resumo_validacao": {
+      "valido": true,
+      "quantidade_transacoes": 2,
+      "quantidade_erros": 0,
+      "quantidade_avisos": 0,
+      "erros": [],
+      "avisos": [],
+      "totais_calculados": {
+        "quantidade_transacoes": 2,
+        "total_bruto": "129.73",
+        "total_taxas_originais": "-5.05",
+        "total_taxas_normalizadas": "5.05",
+        "total_liquido": "124.68",
+        "quantidade_por_modalidade": {
+          "CREDITO": 1,
+          "PIX": 1
+        },
+        "totais_por_modalidade": {
+          "CREDITO": {
+            "quantidade": 1,
+            "total_bruto": "126.83",
+            "total_liquido": "121.80",
+            "total_taxa": "-5.03"
+          },
+          "PIX": {
+            "quantidade": 1,
+            "total_bruto": "2.90",
+            "total_liquido": "2.88",
+            "total_taxa": "-0.02"
+          }
+        },
+        "quantidade_por_data_pagamento": {
+          "2026-07-14": 2
+        },
+        "totais_por_data_pagamento": {
+          "2026-07-14": {
+            "quantidade": 2,
+            "total_bruto": "129.73",
+            "total_liquido": "124.68",
+            "total_taxa": "-5.05"
+          }
+        }
+      }
+    },
+    "resumo_processamento": {
+      "transacoes_lidas": 2,
+      "transacoes_incluidas": 2,
+      "transacoes_fora_periodo": 0,
+      "total_bruto": "129.73",
+      "total_taxa": "-5.05",
+      "total_liquido": "124.68"
+    },
+    "resumo_matching": {
+      "resumo": {
+        "operadora": "CIELO",
+        "transacoes_operadora": 2,
+        "registros_sistema": 2,
+        "conciliados": 2,
+        "nao_encontrados_no_sistema": 0,
+        "nao_encontrados_na_operadora": 0,
+        "divergencias_quantidade": 0,
+        "divergencias_valor": 0,
+        "ambiguidades": 0,
+        "pendencias_dados": 0,
+        "total_bruto_operadora": "129.73",
+        "total_sistema": "129.73",
+        "total_conciliado": "129.73",
+        "diferenca_total": "0.00",
+        "categorias_consultadas": [
+          "CIELO_PIX",
+          "CIELO_CREDITO"
+        ],
+        "categorias_ausentes": [
+          "CIELO_DEBITO"
+        ]
+      },
+      "agregados": [
+        {
+          "chave_grupo": "CIELO|CREDITO|2026-07-13|126.83|visa",
+          "quantidade_operadora": 1,
+          "quantidade_sistema": 1,
+          "quantidade_conciliada": 1,
+          "excedente_operadora": 0,
+          "excedente_sistema": 0,
+          "total_operadora": "126.83",
+          "total_sistema": "126.83",
+          "diferenca_total": "0.00",
+          "status": "CONCILIADO",
+          "nivel_especificidade": "EXATO_COM_BANDEIRA",
+          "alertas": []
+        },
+        {
+          "chave_grupo": "CIELO|PIX|2026-07-13|2.90|pix",
+          "quantidade_operadora": 1,
+          "quantidade_sistema": 1,
+          "quantidade_conciliada": 1,
+          "excedente_operadora": 0,
+          "excedente_sistema": 0,
+          "total_operadora": "2.90",
+          "total_sistema": "2.90",
+          "diferenca_total": "0.00",
+          "status": "CONCILIADO",
+          "nivel_especificidade": "EXATO_COM_BANDEIRA",
+          "alertas": []
+        }
+      ],
+      "individuais": [
+        {
+          "linha_operadora": 4,
+          "id_sistema": "CC-001",
+          "status": "CONCILIADO",
+          "valor_operadora": "126.83",
+          "valor_sistema": "126.83",
+          "diferenca": "0.00",
+          "chave_utilizada": "CIELO|CREDITO|2026-07-13|126.83|visa",
+          "nivel_confianca": "EXATO_COM_BANDEIRA",
+          "correspondencia_individual_comprovada": true,
+          "correspondencia_atribuida_deterministicamente": false
+        },
+        {
+          "linha_operadora": 5,
+          "id_sistema": "CP-001",
+          "status": "CONCILIADO",
+          "valor_operadora": "2.90",
+          "valor_sistema": "2.90",
+          "diferenca": "0.00",
+          "chave_utilizada": "CIELO|PIX|2026-07-13|2.90|pix",
+          "nivel_confianca": "EXATO_COM_BANDEIRA",
+          "correspondencia_individual_comprovada": true,
+          "correspondencia_atribuida_deterministicamente": false
+        }
+      ]
+    },
+    "arquivo_saida": "C:\\Users\\Administrador\\Documents\\conciliacaoCartoes\\.pytest_review_tmp_20261005\\test_workflow_quickpay_invalid0\\planilhas\\2026-10-05\\cielo\\CIELO_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx",
+    "arquivo_resultado": null,
+    "avisos": [],
+    "erros": [],
+    "status": "SUCESSO"
+  },
+  "resultado_quickpay": {
+    "operadora": "QUICKPAY",
+    "arquivo_entrada": "tests\\fixtures\\quickpay\\quickpay_sem_tabela.xlsx",
+    "hash_entrada": null,
+    "hash_preservado": false,
+    "quantidade_lida": 0,
+    "quantidade_valida": 0,
+    "categorias_necessarias": [],
+    "categorias_consultadas": [],
+    "categorias_ausentes": [],
+    "resumo_validacao": null,
+    "resumo_processamento": null,
+    "resumo_matching": null,
+    "arquivo_saida": null,
+    "arquivo_resultado": null,
+    "avisos": [],
+    "erros": [
+      "cabecalho transacional nao encontrado | Arquivo: tests\\fixtures\\quickpay\\quickpay_sem_tabela.xlsx"
+    ],
+    "status": "FALHA"
+  },
+  "resultado_api": {
+    "categorias_solicitadas": [
+      "CIELO_CREDITO",
+      "CIELO_PIX"
+    ],
+    "categorias_consultadas": [
+      "CIELO_CREDITO",
+      "CIELO_PIX"
+    ],
+    "categorias_com_erro": {},
+    "total_registros": 2,
+    "avisos": [
+      "Erro conhecido 'Dédido' tratado como debito QuickPay."
+    ],
+    "arquivos_auditoria": []
+  },
+  "arquivos_gerados": [
+    "C:\\Users\\Administrador\\Documents\\conciliacaoCartoes\\.pytest_review_tmp_20261005\\test_workflow_quickpay_invalid0\\planilhas\\2026-10-05\\cielo\\CIELO_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx"
+  ],
+  "arquivos_de_auditoria": [],
+  "logs": [
+    "logs\\conciliacao_20260719_120000_parcial.log"
+  ],
+  "avisos_globais": [],
+  "erros_globais": [],
+  "status_geral": "SUCESSO_PARCIAL",
+  "codigo_saida": 2
+}

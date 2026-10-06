@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import socket
 import subprocess
 import sys
 import time
@@ -63,27 +62,18 @@ def capture_token_from_visible_chrome() -> str:
     validate_path = os.getenv("VELO_SESSION_VALIDATE_ENDPOINT", "/session/validate").strip()
     timeout_seconds = int(os.getenv("VELO_MANUAL_LOGIN_TIMEOUT_SECONDS", "300"))
     configured_port = os.getenv("VELO_CDP_PORT", "").strip()
-    port = int(configured_port) if configured_port else _free_local_port()
+    port = int(configured_port) if configured_port else 0
     profile_dir = Path(
         os.getenv("VELO_CHROME_PROFILE_DIR", "data/local/velo_chrome_profile")
     ).resolve()
     profile_dir.mkdir(parents=True, exist_ok=True)
-    chrome_path = _chrome_path()
-    subprocess.Popen(  # noqa: S603
-        _chrome_launch_command(chrome_path, port, profile_dir),
-        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-    )
-    endpoint = f"http://127.0.0.1:{port}"
-    if sys.stdout is not None:
-        print("Chrome aberto. Conclua o login para continuar.", flush=True)
-
     try:
         with sync_playwright() as playwright:
-            browser = _connect_cdp(playwright, endpoint, timeout_seconds)
+            browser = _open_login_browser(playwright, profile_dir, port, timeout_seconds)
             contexts = browser.contexts
-            if not contexts or not contexts[0].pages:
-                raise RuntimeError("Nenhuma pagina de login disponivel no Chrome.")
-            page = contexts[0].pages[-1]
+            if not contexts:
+                raise RuntimeError("Nenhum contexto de login disponivel no Chrome.")
+            page = contexts[0].new_page()
             session = contexts[0].new_cdp_session(page)
             captured: dict[str, str | None] = {"token": None}
 
@@ -93,7 +83,9 @@ def capture_token_from_visible_chrome() -> str:
                     return
                 if urlparse(str(request.get("url", ""))).path != validate_path:
                     return
-                captured["token"] = extract_token_from_post_data(request.get("postData"))
+                token = extract_token_from_post_data(request.get("postData"))
+                if token and captured["token"] is None:
+                    captured["token"] = token
 
             try:
                 session.send("Network.enable")
@@ -101,13 +93,18 @@ def capture_token_from_visible_chrome() -> str:
                 page.goto(login_url, wait_until="commit", timeout=30_000)
                 deadline = time.monotonic() + timeout_seconds
                 while captured["token"] is None and time.monotonic() < deadline:
-                    page.wait_for_timeout(250)
+                    try:
+                        page.wait_for_timeout(250)
+                    except PlaywrightError:
+                        if captured["token"] is None:
+                            raise
                 token = captured["token"]
             finally:
-                try:
-                    session.detach()
-                finally:
-                    _close_login_page(page)
+                # Não aguarde page.close()/session.detach(): essas chamadas remotas
+                # podem bloquear a devolução de uma sessão já capturada. A saída do
+                # Playwright desconecta o observador; o Chrome pode continuar aberto.
+                session.remove_listener("Network.requestWillBeSent", inspect_request)
+                captured.clear()
             if token is None:
                 raise VeloAuthenticationError(
                     "Tempo para login manual excedido.", endpoint="authentication"
@@ -123,15 +120,46 @@ def capture_token_from_visible_chrome() -> str:
         ) from exc
 
 
-def _connect_cdp(playwright: Any, endpoint: str, timeout_seconds: int) -> Any:
+def _profile_debugging_port(profile_dir: Path) -> int | None:
+    """Lê apenas a porta local publicada pelo Chrome; não contém credenciais."""
+    try:
+        lines = (profile_dir / "DevToolsActivePort").read_text(encoding="utf-8").splitlines()
+        port = int(lines[0])
+    except (OSError, ValueError, IndexError):
+        return None
+    return port if 0 < port < 65536 else None
+
+
+def _open_login_browser(playwright: Any, profile_dir: Path, port: int, timeout_seconds: int) -> Any:
+    """Reutiliza o Chrome do perfil assistido ou abre uma nova instância visível."""
+    existing_port = port or _profile_debugging_port(profile_dir)
+    if existing_port is not None:
+        try:
+            return playwright.chromium.connect_over_cdp(
+                f"http://127.0.0.1:{existing_port}", timeout=2_000
+            )
+        except Exception:
+            pass  # Porta antiga: o navegador pode ter sido fechado pelo usuário.
+    subprocess.Popen(  # noqa: S603
+        _chrome_launch_command(_chrome_path(), port, profile_dir),
+        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+    )
+    return _connect_cdp(playwright, profile_dir, port, timeout_seconds)
+
+
+def _connect_cdp(playwright: Any, profile_dir: Path, port: int, timeout_seconds: int) -> Any:
     deadline = time.monotonic() + min(timeout_seconds, 30)
     last_error: Exception | None = None
     while time.monotonic() < deadline:
         try:
-            return playwright.chromium.connect_over_cdp(endpoint, timeout=2_000)
+            active_port = port or _profile_debugging_port(profile_dir)
+            if active_port is not None:
+                return playwright.chromium.connect_over_cdp(
+                    f"http://127.0.0.1:{active_port}", timeout=2_000
+                )
         except Exception as exc:  # Playwright usa excecao propria carregada sob demanda.
             last_error = exc
-            time.sleep(0.25)
+        time.sleep(0.25)
     raise RuntimeError("Chrome nao disponibilizou a conexao local.") from last_error
 
 
@@ -146,9 +174,7 @@ def _chrome_path() -> Path:
     for candidate in candidates:
         if candidate is not None and candidate.is_file():
             return candidate
-    raise VeloAuthenticationError(
-        "Google Chrome nao foi localizado.", endpoint="authentication"
-    )
+    raise VeloAuthenticationError("Google Chrome nao foi localizado.", endpoint="authentication")
 
 
 def _chrome_launch_command(chrome_path: Path, port: int, profile_dir: Path) -> list[str]:
@@ -161,18 +187,3 @@ def _chrome_launch_command(chrome_path: Path, port: int, profile_dir: Path) -> l
         "--new-window",
         "about:blank",
     ]
-
-
-def _close_login_page(page: Any) -> None:
-    """Fecha somente a pagina criada para o login, sem encerrar o Chrome do usuario."""
-    try:
-        if not page.is_closed():
-            page.close(run_before_unload=False)
-    except Exception:  # Playwright pode perder a conexao quando a janela ja fechou.
-        return
-
-
-def _free_local_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.bind(("127.0.0.1", 0))
-        return int(listener.getsockname()[1])

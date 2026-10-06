@@ -1,0 +1,3 @@
+2026-10-05 20:22:18,336 INFO inicio execucao=20261005_202218_24ab7a modo=SIMULADO
+2026-10-05 20:22:18,336 ERROR quickpay falha leitura ou processamento: Não foi possível concluir esta etapa. Detalhes sensíveis foram omitidos.
+2026-10-05 20:22:18,336 INFO fim execucao=20261005_202218_24ab7a

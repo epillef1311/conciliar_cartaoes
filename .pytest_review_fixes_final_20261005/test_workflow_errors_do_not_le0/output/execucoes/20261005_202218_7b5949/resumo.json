@@ -1,0 +1,32 @@
+{
+  "identificador_execucao": "20261005_202218_7b5949",
+  "inicio_execucao": "2026-10-05T20:22:18.272247-03:00",
+  "fim_execucao": "2026-10-05T20:22:18.273274-03:00",
+  "duracao_segundos": "0.001",
+  "periodo": {
+    "data_inicio": "2026-10-05",
+    "data_fim": "2026-10-05"
+  },
+  "modo": "SIMULADO",
+  "resultado_cielo": null,
+  "resultado_quickpay": null,
+  "resultado_api": {
+    "categorias_solicitadas": [],
+    "categorias_consultadas": [],
+    "categorias_com_erro": {},
+    "total_registros": 0,
+    "avisos": [],
+    "arquivos_auditoria": []
+  },
+  "arquivos_gerados": [],
+  "arquivos_de_auditoria": [],
+  "logs": [
+    "logs\\conciliacao_20261005_202218_7b5949.log"
+  ],
+  "avisos_globais": [],
+  "erros_globais": [
+    "Não foi possível concluir esta etapa. Detalhes sensíveis foram omitidos."
+  ],
+  "status_geral": "FALHA",
+  "codigo_saida": 1
+}

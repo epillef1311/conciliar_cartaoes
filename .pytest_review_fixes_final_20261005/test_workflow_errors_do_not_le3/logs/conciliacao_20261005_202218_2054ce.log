@@ -1,0 +1,6 @@
+2026-10-05 20:22:18,366 INFO inicio execucao=20261005_202218_2054ce modo=SIMULADO
+2026-10-05 20:22:18,374 INFO cielo lida transacoes=2 valido=True
+2026-10-05 20:22:18,377 INFO api categoria=CIELO_CREDITO inicio=2026-07-13 fim=2026-07-13 registros=1
+2026-10-05 20:22:18,377 INFO api categoria=CIELO_PIX inicio=2026-07-13 fim=2026-07-13 registros=1
+2026-10-05 20:22:18,379 ERROR cielo falha exportacao: Não foi possível concluir esta etapa. Detalhes sensíveis foram omitidos.
+2026-10-05 20:22:18,379 INFO fim execucao=20261005_202218_2054ce

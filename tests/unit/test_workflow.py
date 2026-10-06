@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
 from openpyxl import load_workbook
 from pydantic import ValidationError
 
@@ -14,6 +15,7 @@ from conciliacao.domain.enums import Modalidade, Operadora
 from conciliacao.exporters.quickpay_exporter import SHEET_NAME
 from conciliacao.integrations.velo.authentication import StaticTokenProvider
 from conciliacao.integrations.velo.categories import CategoriaFiltroVelo
+from conciliacao.integrations.velo.config import load_velo_api_config
 from conciliacao.integrations.velo.testing import FakeVeloTransport, text_response
 from conciliacao.processors.quickpay_processor import QuickPayProcessor
 from conciliacao.readers.quickpay_reader import ler_quickpay
@@ -291,6 +293,59 @@ def test_workflow_queries_debit_category_by_receipt_date():
         date(2026, 7, 15),
         date(2026, 7, 15),
     )
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "global",
+        "_preparar_cielo",
+        "_preparar_quickpay",
+        "_exportar_cielo_atomico",
+        "_exportar_quickpay_atomico",
+    ],
+)
+def test_workflow_errors_do_not_leak_sensitive_messages_or_causes(tmp_path, monkeypatch, stage):
+    config = load_velo_api_config()
+    quickpay = "quickpay" in stage
+    source = Path(
+        "tests/fixtures/quickpay/quickpay_valido.xlsx"
+        if quickpay else "tests/fixtures/cielo/cielo_valido.xlsx"
+    ).resolve()
+    command = ReconciliationCommand(
+        arquivo_cielo=None if quickpay else source,
+        arquivo_quickpay=source if quickpay else None,
+        diretorio_saida=tmp_path / "output",
+        diretorio_planilhas=tmp_path / "planilhas",
+        modo_simulado=True,
+        diretorio_fixtures_api=_api_fixtures(tmp_path),
+        salvar_auditoria=False,
+    )
+    notifications = []
+    workflow = ReconciliationWorkflow(config=config, log_callback=notifications.append)
+    artificial_secret = "segredo-ficticio-de-regressao"
+    artificial_cause = "causa-ficticia-nao-exibir"
+
+    def fail(*args, **kwargs):
+        raise RuntimeError(f"Authorization: Bearer {artificial_secret}") from RuntimeError(
+            artificial_cause
+        )
+
+    if stage == "global":
+        monkeypatch.setattr(workflow, "_preparar_operadoras", fail)
+    else:
+        monkeypatch.setattr(f"conciliacao.workflow.{stage}", fail)
+    monkeypatch.chdir(tmp_path)
+
+    result = workflow.executar(command)
+
+    assert result.status_geral is WorkflowStatus.FALHA
+    persisted = _combined_text(
+        [path for path in tmp_path.rglob("*") if path.suffix in {".json", ".txt", ".log"}]
+    )
+    combined = persisted + result.model_dump_json() + "\n".join(notifications)
+    for forbidden in (artificial_secret, artificial_cause, "Authorization", "Bearer", "Traceback"):
+        assert forbidden not in combined
 
 
 def _api_fixtures(tmp_path: Path, *, omit: set[str] | None = None) -> Path:

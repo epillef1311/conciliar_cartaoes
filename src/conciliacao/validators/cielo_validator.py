@@ -285,22 +285,24 @@ class CieloValidator:
     ) -> list[AlertaValidacao]:
         erros = []
         for campo in ("codigo_venda", "tid", "nsu_doc"):
-            valores = [
-                _identificador_cielo(transacao, campo)
-                for transacao in resultado.transacoes
-                if _identificador_cielo(transacao, campo)
-            ]
-            for valor, count in Counter(valores).items():
-                if count > 1:
+            grupos: dict[str, list[TransacaoOperadora]] = {}
+            for transacao in resultado.transacoes:
+                valor = _identificador_cielo(transacao, campo)
+                if valor:
+                    grupos.setdefault(valor, []).append(transacao)
+            for valor, grupo in grupos.items():
+                if len(grupo) > 1 and not _parcelas_distintas_da_mesma_venda(grupo):
+                    linhas = [item.linha_original for item in grupo]
                     erros.append(
                         alerta(
                             codigo=f"CIELO_{campo.upper()}_DUPLICADO",
-                            mensagem=f"Identificador Cielo repetido: {valor}.",
+                            mensagem=f"Identificador Cielo repetido: {valor}. Linhas: {linhas}.",
                             severidade=SeveridadeAlerta.ERRO,
                             arquivo=resultado.caminho_arquivo,
                             aba=resultado.nome_aba_ou_tabela,
+                            linha=linhas[0],
                             valor_recebido=valor,
-                            contexto={"ocorrencias": count},
+                            contexto={"ocorrencias": len(grupo), "linhas": linhas},
                         )
                     )
         return erros
@@ -429,6 +431,28 @@ def _identificador_cielo(transacao: TransacaoOperadora, campo: str) -> str | Non
     if campo == "codigo_venda" and transacao.identificador_origem:
         return transacao.identificador_origem
     return None
+
+
+def _parcelas_distintas_da_mesma_venda(transacoes: list[TransacaoOperadora]) -> bool:
+    """Uma venda parcelada pode repetir identificadores, sem repetir a parcela."""
+    vendas = {
+        (
+            _identificador_cielo(item, "codigo_venda"),
+            _identificador_cielo(item, "tid"),
+            _identificador_cielo(item, "nsu_doc"),
+            item.data_venda,
+            item.modalidade,
+            _texto_normalizado(item.bandeira),
+        )
+        for item in transacoes
+    }
+    if len(vendas) != 1 or any(item.modalidade is not Modalidade.CREDITO for item in transacoes):
+        return False
+    try:
+        parcelas = [int(_identificador_cielo(item, "numero_parcela") or "") for item in transacoes]
+    except ValueError:
+        return False
+    return all(numero > 0 for numero in parcelas) and len(set(parcelas)) == len(transacoes)
 
 
 def _quantidade_totalizador(value: object) -> int | None:

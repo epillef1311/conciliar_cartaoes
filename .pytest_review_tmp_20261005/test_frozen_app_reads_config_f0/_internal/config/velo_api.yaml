@@ -1,0 +1,35 @@
+base_url: "https://api.v1.velosistema.com.br"
+
+endpoints:
+  autocomplete_operadoras: "/autoCompletarOperadora"
+  conciliacao_recebidos: "/listarConciliacaoCartaoRecebido"
+
+query:
+  intervalo_dia: -1
+  is_compensado: 0
+
+formas_recebimento_fallback:
+  cielo_credito: 81
+  cielo_debito: 86
+  cielo_pix: 91
+  quickpay_credito: 44
+  quickpay_debito: 51
+  quickpay_pix: 42
+
+fallback_policy:
+  use_when_autocomplete_fails: true
+  log_alert: true
+  ask_interactive_confirmation: false
+  reject_if_returned_name_indicates_different_modality: true
+
+timeouts:
+  connect_seconds: 10
+  read_seconds: 30
+
+retries:
+  enabled: false
+  max_attempts: 1
+
+audit:
+  save_raw_responses: true
+  raw_directory: "data/api_raw"

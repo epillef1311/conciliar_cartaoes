@@ -54,6 +54,7 @@ from conciliacao.readers.quickpay_reader import ler_quickpay
 from conciliacao.utils.currency import quantize_money
 from conciliacao.utils.file_hash import sha256_file
 from conciliacao.validators import CieloValidator, QuickPayValidator, ResultadoValidacao
+from conciliacao.validators.formatter import formatar_alerta
 
 
 class WorkflowMode(StrEnum):
@@ -185,11 +186,17 @@ class ReconciliationWorkflow:
         transport: HttpTransport | None = None,
         token_provider: TokenProvider | None = None,
         log_callback: Callable[[str], None] | None = None,
+        progress_callback: Callable[[str, tuple[date, date] | None], None] | None = None,
     ) -> None:
         self.config = config
         self.transport = transport
         self.token_provider = token_provider
         self.log_callback = log_callback
+        self.progress_callback = progress_callback
+
+    def _progress(self, stage: str, periodo: tuple[date, date] | None = None) -> None:
+        if self.progress_callback is not None:
+            self.progress_callback(stage, periodo)
 
     def executar(self, comando: ReconciliationCommand) -> WorkflowResult:
         started = datetime.now(ZoneInfo("America/Sao_Paulo"))
@@ -209,10 +216,12 @@ class ReconciliationWorkflow:
         avisos_globais: list[str] = []
 
         try:
+            self._progress("leitura")
             prepared, early_results = self._preparar_operadoras(comando, logger)
             categorias = _categorias_necessarias(prepared)
             periodos_consulta = _periodos_consulta_por_categoria(prepared)
             periodo_global = _periodo_global(prepared_periodos=periodos_consulta)
+            self._progress("consulta", periodo_global if periodos_consulta else None)
             resultado_api, registros_por_categoria = self._consultar_api(
                 comando,
                 execution_id=execution_id,
@@ -220,6 +229,8 @@ class ReconciliationWorkflow:
                 periodos=periodos_consulta,
                 logger=logger,
             )
+            if comando.arquivo_cielo is not None:
+                self._progress("cielo")
             resultado_cielo = self._finalizar_cielo(
                 comando,
                 execution_id=execution_id,
@@ -230,6 +241,8 @@ class ReconciliationWorkflow:
                 registros_por_categoria=registros_por_categoria,
                 logger=logger,
             )
+            if comando.arquivo_quickpay is not None:
+                self._progress("quickpay")
             resultado_quickpay = self._finalizar_quickpay(
                 comando,
                 execution_id=execution_id,
@@ -241,14 +254,12 @@ class ReconciliationWorkflow:
                 logger=logger,
             )
         except VeloAuthenticationError as exc:
-            message = (
-                "Token Bearer ausente, invalido ou expirado. Conclua um novo login para continuar."
-            )
+            message = "Falha de autenticação na Velo: " + _safe_error(exc)
             erros_globais.append(message)
-            logger.error("falha autenticacao endpoint=%s", exc.endpoint)
+            logger.error("%s", message)
         except Exception as exc:
             erros_globais.append(_safe_error(exc))
-            logger.exception("falha global sem dados sensiveis")
+            logger.error("falha global: %s", _safe_error(exc))
         finally:
             logger.info("fim execucao=%s", execution_id)
             _close_logger(logger)
@@ -268,6 +279,7 @@ class ReconciliationWorkflow:
             avisos_globais=avisos_globais,
             periodo=periodo_global,
         )
+        self._progress("resumos")
         self._salvar_resumos(comando, result)
         return result
 
@@ -285,7 +297,7 @@ class ReconciliationWorkflow:
                     comando.arquivo_cielo,
                     _safe_error(exc),
                 )
-                logger.exception("cielo falha leitura ou processamento")
+                logger.error("cielo falha leitura ou processamento: %s", _safe_error(exc))
         if comando.arquivo_quickpay is not None:
             try:
                 prepared[Operadora.QUICKPAY] = _preparar_quickpay(comando, logger)
@@ -295,7 +307,7 @@ class ReconciliationWorkflow:
                     comando.arquivo_quickpay,
                     _safe_error(exc),
                 )
-                logger.exception("quickpay falha leitura ou processamento")
+                logger.error("quickpay falha leitura ou processamento: %s", _safe_error(exc))
         return prepared, early_results
 
     def _consultar_api(
@@ -429,7 +441,7 @@ class ReconciliationWorkflow:
                 status=status,
             )
         except Exception as exc:
-            logger.exception("cielo falha exportacao")
+            logger.error("cielo falha exportacao: %s", _safe_error(exc))
             return _base_operator_result(prepared, erros=[_safe_error(exc)])
 
     def _finalizar_quickpay(
@@ -491,7 +503,7 @@ class ReconciliationWorkflow:
                 status=status,
             )
         except Exception as exc:
-            logger.exception("quickpay falha exportacao")
+            logger.error("quickpay falha exportacao: %s", _safe_error(exc))
             return _base_operator_result(prepared, erros=[_safe_error(exc)])
 
     def _salvar_resumos(self, comando: ReconciliationCommand, result: WorkflowResult) -> None:
@@ -600,6 +612,21 @@ def _categorias_necessarias(
         if item.validacao.valido:
             selected.update(item.categorias)
     return tuple(categoria for categoria in CategoriaFiltroVelo if categoria in selected)
+
+
+def identificar_periodo(comando: ReconciliationCommand) -> tuple[date, date]:
+    """Prévia somente leitura, com as mesmas regras de datas usadas nas consultas."""
+    logger = logging.Logger("conciliacao.preview")
+    logger.addHandler(logging.NullHandler())
+    prepared, failures = ReconciliationWorkflow()._preparar_operadoras(comando, logger)
+    if failures:
+        raise ValueError("\n".join(erro for item in failures.values() for erro in item.erros))
+    periodos = _periodos_consulta_por_categoria(prepared)
+    if not periodos:
+        raise ValueError(
+            "Não foi possível identificar o período. Confira as planilhas selecionadas."
+        )
+    return _periodo_global(prepared_periodos=periodos)
 
 
 def _periodos_consulta_por_categoria(
@@ -815,7 +842,7 @@ def _base_operator_result(
 ) -> ResultadoOperadoraWorkflow:
     leitura = prepared.leitura
     relatorio = prepared.relatorio
-    validation_errors = [alerta.codigo for alerta in prepared.validacao.erros]
+    validation_errors = [formatar_alerta(alerta) for alerta in prepared.validacao.erros]
     all_errors = [*validation_errors, *(erros or [])]
     return ResultadoOperadoraWorkflow(
         operadora=prepared.operadora,
@@ -930,7 +957,7 @@ def _exit_code(
 ) -> int:
     if status is WorkflowStatus.SUCESSO:
         return int(WorkflowExitCode.SUCESSO.value)
-    if any("Token Bearer" in erro for erro in erros_globais):
+    if any("Falha de autenticação na Velo:" in erro for erro in erros_globais):
         return int(WorkflowExitCode.FALHA_AUTENTICACAO.value)
     if status is WorkflowStatus.SUCESSO_PARCIAL:
         return int(WorkflowExitCode.SUCESSO_PARCIAL.value)
@@ -949,7 +976,7 @@ def _validation_summary(validacao: ResultadoValidacao) -> dict[str, Any]:
         "quantidade_transacoes": validacao.quantidade_transacoes,
         "quantidade_erros": validacao.quantidade_erros,
         "quantidade_avisos": validacao.quantidade_avisos,
-        "erros": [alerta.codigo for alerta in validacao.erros],
+        "erros": [formatar_alerta(alerta) for alerta in validacao.erros],
         "avisos": [alerta.codigo for alerta in validacao.avisos],
         "totais_calculados": validacao.totais_calculados,
     }
@@ -1171,9 +1198,37 @@ def _hash_preservado(prepared: _PreparedOperator) -> bool:
 
 
 def _safe_error(exc: Exception) -> str:
-    text = str(exc)
-    for marker in ("Authorization", "Bearer"):
-        text = text.replace(marker, "<redacted>")
+    if isinstance(exc, VeloAuthenticationError):
+        message = str(exc)
+        if message == "Erro seguro da integracao Velo.":
+            message = "Sessão de acesso ausente, inválida ou expirada."
+        text = message + " Inicie novamente a conciliação e conclua o login no Chrome."
+    elif isinstance(exc, VeloApiError):
+        detalhe = f" (HTTP {exc.status_code})" if exc.status_code is not None else ""
+        text = f"{exc}{detalhe} Verifique o acesso à Velo e tente novamente."
+    else:
+        text = str(exc).strip()
+    if not text or text.isdecimal():
+        text = (
+            "Não foi possível concluir esta etapa. Verifique os arquivos e as permissões de acesso."
+        )
+    for atributo, rotulo in (
+        ("arquivo", "Arquivo"),
+        ("aba", "Aba"),
+        ("linha", "Linha"),
+        ("coluna", "Coluna"),
+        ("celula", "Célula"),
+    ):
+        valor = getattr(exc, atributo, None)
+        if valor is not None:
+            text += f" | {rotulo}: {valor}"
+    # Remover somente o nome do cabecalho deixa seu valor exposto. Descartamos
+    # todo o detalhe suspeito, incluindo os campos de localizacao da excecao.
+    if any(
+        marker in text.casefold()
+        for marker in ("authorization", "bearer", "token", "cookie", "password", "senha", "secret")
+    ):
+        return "Não foi possível concluir esta etapa. Detalhes sensíveis foram omitidos."
     return text
 
 

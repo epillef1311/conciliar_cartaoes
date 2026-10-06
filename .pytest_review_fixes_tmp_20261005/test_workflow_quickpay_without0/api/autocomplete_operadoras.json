@@ -1,0 +1,26 @@
+[
+  {
+    "id": 81,
+    "descricao": "Cartao de Credito - Cielo"
+  },
+  {
+    "id": 86,
+    "descricao": "Cartao de Debito - Cielo"
+  },
+  {
+    "id": 91,
+    "descricao": "Pix - Cielo"
+  },
+  {
+    "id": 44,
+    "descricao": "Cartao de Credito - Quickpay"
+  },
+  {
+    "id": 51,
+    "descricao": "Cartao de Dedido - Quickpay"
+  },
+  {
+    "id": 42,
+    "descricao": "Pix - Quickpay"
+  }
+]

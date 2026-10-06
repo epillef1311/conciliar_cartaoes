@@ -1,0 +1,11 @@
+[
+  {
+    "horario": "2026-10-05T20:20:40-03:00",
+    "endpoint": "/listar",
+    "operadora_id": 86,
+    "duracao_ms": 125,
+    "primeiro_byte_ms": 100,
+    "status_http": 200,
+    "erro": null
+  }
+]

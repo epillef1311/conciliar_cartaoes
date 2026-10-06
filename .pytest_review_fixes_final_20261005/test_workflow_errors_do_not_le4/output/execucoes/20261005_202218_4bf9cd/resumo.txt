@@ -1,0 +1,25 @@
+CONCILIACAO FINALIZADA COM FALHA
+
+Execucao:
+20261005_202218_4bf9cd
+
+Periodo:
+13/07/2026 a 13/07/2026
+
+QUICKPAY
+Status: FALHA
+Transacoes: 2
+Conciliadas: 0
+Pendentes: 0
+Nao encontradas no sistema: 0
+Nao encontradas na operadora: 0
+Arquivo: 
+Erros:
+Não foi possível concluir esta etapa. Detalhes sensíveis foram omitidos.
+
+API
+Categorias consultadas: 1
+Categorias com erro: 0
+
+Status geral:
+FALHA

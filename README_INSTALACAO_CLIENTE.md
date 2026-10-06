@@ -8,9 +8,13 @@ Para gerar o aplicativo para distribuição, em uma máquina de desenvolvimento 
 .\scripts\gerar_executavel.ps1
 ```
 
-O resultado fica em `dist\ConciliacaoCartoes`. Entregue a pasta inteira ao cliente; o executável é `ConciliacaoCartoes.exe`. A tela permite selecionar as planilhas Cielo e QuickPay (e, opcionalmente, a planilha auxiliar de recebimentos bancários QuickPay), sem informar datas. A logo oficial é incorporada à tela e ao ícone do executável.
+O resultado fica em `dist\ConciliacaoCartoes_FrigorificoCandeias`. Entregue a pasta inteira ao cliente; o executável é `ConciliacaoCartoes_FrigorificoCandeias.exe`. A tela permite selecionar as planilhas Cielo e QuickPay (e, opcionalmente, a planilha auxiliar de recebimentos bancários QuickPay), sem informar datas. A logo oficial é incorporada à tela e ao ícone do executável.
 
-O Chrome continua sendo necessário para o login manual assistido na Velo. Nenhuma credencial é gravada pelo aplicativo.
+A interface identifica o período pelas datas das planilhas, mostra as etapas reais da execução e oferece botões para abrir os relatórios gerados. A seleção de arquivos pode ser trocada ou removida; auditoria e detalhes da execução ficam em painéis recolhíveis. Durante o login e o processamento, o indicador de atividade não representa uma porcentagem estimada.
+
+A geração do executável verifica automaticamente a inicialização da interface empacotada. Para repetir somente essa verificação, execute `.\scripts\verificar_executavel.ps1`; o aplicativo abre e encerra automaticamente, sem iniciar a conciliação.
+
+O Chrome continua sendo necessário para o login manual assistido na Velo. A janela permanece aberta durante e após a conciliação, inclusive em caso de falha. O token capturado permanece somente em memória durante a execução e é descartado ao final. Nenhuma credencial é gravada pelo aplicativo.
 
 ## Requisitos
 

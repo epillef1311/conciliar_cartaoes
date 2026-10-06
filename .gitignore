@@ -25,6 +25,7 @@ node_modules/
 arquivos_exemplo/
 planilhas/
 outputs/
+tmp/
 conciliacao-cartoes-cliente-*.zip
 portfolio-sanitized/
 backups/

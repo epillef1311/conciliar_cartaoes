@@ -1,0 +1,88 @@
+{
+  "execution_id": "20260719_120000_teste1",
+  "operadora": "QUICKPAY",
+  "arquivo_saida": "C:\\Users\\Administrador\\Documents\\conciliacaoCartoes\\.pytest_review_fixes_final_20261005\\test_workflow_simulado_process0\\planilhas\\2026-10-05\\quickpay\\QUICKPAY_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx",
+  "matching": {
+    "resumo": {
+      "operadora": "QUICKPAY",
+      "transacoes_operadora": 2,
+      "registros_sistema": 2,
+      "conciliados": 2,
+      "nao_encontrados_no_sistema": 0,
+      "nao_encontrados_na_operadora": 0,
+      "divergencias_quantidade": 0,
+      "divergencias_valor": 0,
+      "ambiguidades": 0,
+      "pendencias_dados": 0,
+      "total_bruto_operadora": "320.83",
+      "total_sistema": "320.83",
+      "total_conciliado": "320.83",
+      "diferenca_total": "0.00",
+      "categorias_consultadas": [
+        "QUICKPAY_CREDITO",
+        "CIELO_PIX",
+        "CIELO_CREDITO"
+      ],
+      "categorias_ausentes": [
+        "QUICKPAY_PIX",
+        "QUICKPAY_DEBITO"
+      ]
+    },
+    "agregados": [
+      {
+        "chave_grupo": "QUICKPAY|CREDITO|2026-07-13|126.83|visa",
+        "quantidade_operadora": 1,
+        "quantidade_sistema": 1,
+        "quantidade_conciliada": 1,
+        "excedente_operadora": 0,
+        "excedente_sistema": 0,
+        "total_operadora": "126.83",
+        "total_sistema": "126.83",
+        "diferenca_total": "0.00",
+        "status": "CONCILIADO",
+        "nivel_especificidade": "EXATO_COM_BANDEIRA",
+        "alertas": []
+      },
+      {
+        "chave_grupo": "QUICKPAY|CREDITO|2026-07-13|194.00|mastercard",
+        "quantidade_operadora": 1,
+        "quantidade_sistema": 1,
+        "quantidade_conciliada": 1,
+        "excedente_operadora": 0,
+        "excedente_sistema": 0,
+        "total_operadora": "194.00",
+        "total_sistema": "194.00",
+        "diferenca_total": "0.00",
+        "status": "CONCILIADO",
+        "nivel_especificidade": "EXATO_COM_BANDEIRA",
+        "alertas": []
+      }
+    ],
+    "individuais": [
+      {
+        "linha_operadora": 4,
+        "id_sistema": "QC-002",
+        "status": "CONCILIADO",
+        "valor_operadora": "194.00",
+        "valor_sistema": "194.00",
+        "diferenca": "0.00",
+        "chave_utilizada": "QUICKPAY|CREDITO|2026-07-13|194.00|mastercard",
+        "nivel_confianca": "EXATO_COM_BANDEIRA",
+        "correspondencia_individual_comprovada": true,
+        "correspondencia_atribuida_deterministicamente": false
+      },
+      {
+        "linha_operadora": 3,
+        "id_sistema": "QC-001",
+        "status": "CONCILIADO",
+        "valor_operadora": "126.83",
+        "valor_sistema": "126.83",
+        "diferenca": "0.00",
+        "chave_utilizada": "QUICKPAY|CREDITO|2026-07-13|126.83|visa",
+        "nivel_confianca": "EXATO_COM_BANDEIRA",
+        "correspondencia_individual_comprovada": true,
+        "correspondencia_atribuida_deterministicamente": false
+      }
+    ]
+  }
+}

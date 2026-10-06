@@ -3,6 +3,7 @@
 from decimal import Decimal
 from typing import Any
 
+from conciliacao.domain.models import AlertaValidacao
 from conciliacao.validators.models import ResultadoValidacao
 
 
@@ -37,14 +38,8 @@ def _formatar_resultado(resultado: ResultadoValidacao) -> str:
         linhas.append(
             "Conferência bancária não realizada: recebimentos não informados ou incompletos."
         )
-    for erro in resultado.erros[:5]:
-        linhas.append(f"Erro: {erro.codigo} - {erro.mensagem}")
-        if erro.aba:
-            linhas.append(f"Aba: {erro.aba}")
-        if erro.linha:
-            linhas.append(f"Linha: {erro.linha}")
-        if erro.celula:
-            linhas.append(f"Celula: {erro.celula}")
+    for erro in resultado.erros:
+        linhas.append(f"Erro: {formatar_alerta(erro)}")
     return "\n".join(linhas)
 
 
@@ -61,3 +56,19 @@ def _moeda(value: Any) -> str:
         partes.append(inteiro[-3:])
         inteiro = inteiro[:-3]
     return f"{sinal}R$ {'.'.join(reversed(partes))},{centavos}"
+
+
+def formatar_alerta(alerta: AlertaValidacao) -> str:
+    partes = [alerta.mensagem]
+    for atributo, rotulo in (
+        ("arquivo", "Arquivo"),
+        ("aba", "Aba"),
+        ("linha", "Linha"),
+        ("coluna", "Coluna"),
+        ("celula", "Célula"),
+    ):
+        valor = getattr(alerta, atributo, None)
+        if valor is not None:
+            partes.append(f"{rotulo}: {valor}")
+    partes.append(f"Código: {alerta.codigo}")
+    return " | ".join(partes)

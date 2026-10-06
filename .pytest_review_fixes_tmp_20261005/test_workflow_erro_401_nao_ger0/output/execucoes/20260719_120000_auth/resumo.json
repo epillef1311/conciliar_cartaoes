@@ -1,0 +1,32 @@
+{
+  "identificador_execucao": "20260719_120000_auth",
+  "inicio_execucao": "2026-10-05T20:20:41.758207-03:00",
+  "fim_execucao": "2026-10-05T20:20:41.767750-03:00",
+  "duracao_segundos": "0.01",
+  "periodo": {
+    "data_inicio": "2026-07-13",
+    "data_fim": "2026-07-13"
+  },
+  "modo": "REAL",
+  "resultado_cielo": null,
+  "resultado_quickpay": null,
+  "resultado_api": {
+    "categorias_solicitadas": [],
+    "categorias_consultadas": [],
+    "categorias_com_erro": {},
+    "total_registros": 0,
+    "avisos": [],
+    "arquivos_auditoria": []
+  },
+  "arquivos_gerados": [],
+  "arquivos_de_auditoria": [],
+  "logs": [
+    "logs\\conciliacao_20260719_120000_auth.log"
+  ],
+  "avisos_globais": [],
+  "erros_globais": [
+    "Falha de autenticação na Velo: Sessão de acesso ausente, inválida ou expirada. Inicie novamente a conciliação e conclua o login no Chrome."
+  ],
+  "status_geral": "FALHA",
+  "codigo_saida": 4
+}

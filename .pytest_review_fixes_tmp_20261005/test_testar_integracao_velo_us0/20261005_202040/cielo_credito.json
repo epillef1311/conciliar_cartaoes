@@ -1,0 +1,49 @@
+[
+  {
+    "elevaUsuarioId": 10,
+    "elevaEmpresaId": 1,
+    "acao": "LISTAR",
+    "forcarAcao": false,
+    "totalRegistros": 3,
+    "contaPacotePagamentoUnicoId": "CC-001",
+    "operadoraId": 81,
+    "operadora": "Cielo",
+    "cadastroCaixaId": "CX-100",
+    "formaRecebimentoId": 81,
+    "formaRecebimento": "Cartão de Crédito - Cielo",
+    "tipoCartao": "Visa",
+    "valor": "126.83",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-15",
+    "dataCadastro": "2026-07-14",
+    "categoriaTaxaId": null,
+    "centroCustoTaxaId": null,
+    "campoExtraFuturo": "preservar"
+  },
+  {
+    "contaPacotePagamentoUnicoId": "CC-002",
+    "operadoraId": 81,
+    "operadora": "Cielo",
+    "cadastroCaixaId": "CX-101",
+    "formaRecebimentoId": 81,
+    "formaRecebimento": "Cartão de Crédito - Cielo",
+    "tipoCartao": "Mastercard",
+    "valor": 194.0,
+    "valorTaxaCartao": 0.0,
+    "dataVencimento": "2026-07-15",
+    "dataCadastro": "2026-07-14"
+  },
+  {
+    "contaPacotePagamentoUnicoId": "CC-003",
+    "operadoraId": 81,
+    "operadora": "Cielo",
+    "cadastroCaixaId": "CX-102",
+    "formaRecebimentoId": 81,
+    "formaRecebimento": "Cartão de Crédito - Cielo",
+    "tipoCartao": "Visa",
+    "valor": "126.83",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-16",
+    "dataCadastro": "2026-07-15"
+  }
+]

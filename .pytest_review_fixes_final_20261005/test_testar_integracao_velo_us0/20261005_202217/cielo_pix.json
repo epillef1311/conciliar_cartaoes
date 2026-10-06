@@ -1,0 +1,41 @@
+[
+  {
+    "contaPacotePagamentoUnicoId": "CP-001",
+    "operadoraId": 91,
+    "operadora": "Cielo",
+    "cadastroCaixaId": "CX-300",
+    "formaRecebimentoId": 91,
+    "formaRecebimento": "Pix - Cielo",
+    "tipoCartao": "Pix",
+    "valor": "2.90",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-15",
+    "dataCadastro": "2026-07-14"
+  },
+  {
+    "contaPacotePagamentoUnicoId": "CP-002",
+    "operadoraId": 91,
+    "operadora": "Cielo",
+    "cadastroCaixaId": "CX-301",
+    "formaRecebimentoId": 91,
+    "formaRecebimento": "Pix - Cielo",
+    "tipoCartao": "Pix",
+    "valor": "2.39",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-15",
+    "dataCadastro": "2026-07-14"
+  },
+  {
+    "contaPacotePagamentoUnicoId": "CP-003",
+    "operadoraId": 91,
+    "operadora": "Cielo",
+    "cadastroCaixaId": "CX-302",
+    "formaRecebimentoId": 91,
+    "formaRecebimento": "Pix - Cielo",
+    "tipoCartao": "Pix",
+    "valor": "2.39",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-16",
+    "dataCadastro": "2026-07-15"
+  }
+]

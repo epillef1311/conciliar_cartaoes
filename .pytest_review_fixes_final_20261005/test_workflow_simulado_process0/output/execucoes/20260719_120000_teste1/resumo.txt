@@ -1,0 +1,32 @@
+CONCILIACAO FINALIZADA COM SUCESSO
+
+Execucao:
+20260719_120000_teste1
+
+Periodo:
+13/07/2026 a 13/07/2026
+
+CIELO
+Status: SUCESSO
+Transacoes: 2
+Conciliadas: 2
+Pendentes: 0
+Nao encontradas no sistema: 0
+Nao encontradas na operadora: 0
+Arquivo: C:\Users\Administrador\Documents\conciliacaoCartoes\.pytest_review_fixes_final_20261005\test_workflow_simulado_process0\planilhas\2026-10-05\cielo\CIELO_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx
+
+QUICKPAY
+Status: SUCESSO
+Transacoes: 2
+Conciliadas: 2
+Pendentes: 0
+Nao encontradas no sistema: 0
+Nao encontradas na operadora: 0
+Arquivo: C:\Users\Administrador\Documents\conciliacaoCartoes\.pytest_review_fixes_final_20261005\test_workflow_simulado_process0\planilhas\2026-10-05\quickpay\QUICKPAY_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx
+
+API
+Categorias consultadas: 3
+Categorias com erro: 0
+
+Status geral:
+SUCESSO

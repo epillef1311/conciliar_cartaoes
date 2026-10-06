@@ -1,0 +1,50 @@
+{
+  "identificador_execucao": "20261005_202218_24ab7a",
+  "inicio_execucao": "2026-10-05T20:22:18.335577-03:00",
+  "fim_execucao": "2026-10-05T20:22:18.336652-03:00",
+  "duracao_segundos": "0.001",
+  "periodo": {
+    "data_inicio": "2026-10-05",
+    "data_fim": "2026-10-05"
+  },
+  "modo": "SIMULADO",
+  "resultado_cielo": null,
+  "resultado_quickpay": {
+    "operadora": "QUICKPAY",
+    "arquivo_entrada": "C:\\Users\\Administrador\\Documents\\conciliacaoCartoes\\tests\\fixtures\\quickpay\\quickpay_valido.xlsx",
+    "hash_entrada": null,
+    "hash_preservado": false,
+    "quantidade_lida": 0,
+    "quantidade_valida": 0,
+    "categorias_necessarias": [],
+    "categorias_consultadas": [],
+    "categorias_ausentes": [],
+    "resumo_validacao": null,
+    "resumo_processamento": null,
+    "resumo_matching": null,
+    "arquivo_saida": null,
+    "arquivo_resultado": null,
+    "avisos": [],
+    "erros": [
+      "Não foi possível concluir esta etapa. Detalhes sensíveis foram omitidos."
+    ],
+    "status": "FALHA"
+  },
+  "resultado_api": {
+    "categorias_solicitadas": [],
+    "categorias_consultadas": [],
+    "categorias_com_erro": {},
+    "total_registros": 0,
+    "avisos": [],
+    "arquivos_auditoria": []
+  },
+  "arquivos_gerados": [],
+  "arquivos_de_auditoria": [],
+  "logs": [
+    "logs\\conciliacao_20261005_202218_24ab7a.log"
+  ],
+  "avisos_globais": [],
+  "erros_globais": [],
+  "status_geral": "FALHA",
+  "codigo_saida": 1
+}

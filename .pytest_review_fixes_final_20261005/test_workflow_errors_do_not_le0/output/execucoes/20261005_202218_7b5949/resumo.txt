@@ -1,0 +1,14 @@
+CONCILIACAO FINALIZADA COM FALHA
+
+Execucao:
+20261005_202218_7b5949
+
+Periodo:
+05/10/2026 a 05/10/2026
+
+API
+Categorias consultadas: 0
+Categorias com erro: 0
+
+Status geral:
+FALHA

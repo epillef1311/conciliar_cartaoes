@@ -5,6 +5,8 @@ from datetime import date, time
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from conciliacao.domain.enums import Modalidade, Operadora, OrigemRegistro, StatusConciliacao
 from conciliacao.domain.models import RegistroSistema, TransacaoOperadora
 from conciliacao.integrations.velo.categories import CategoriaFiltroVelo
@@ -207,6 +209,49 @@ def test_missing_api_brand_with_multiple_operator_brands_is_ambiguous_and_not_co
     assert all(
         item.status is StatusConciliacao.CORRESPONDENCIA_AMBIGUA for item in result.individuais
     )
+
+
+@pytest.mark.parametrize("bandeira,tipo", [("Elo", "Hipercard"), ("Marca A", "Marca B")])
+def test_distinct_explicit_brands_never_match(bandeira, tipo):
+    result = ReconciliationService().conciliar_cielo(
+        [_tx(bandeira=bandeira)], [_reg(tipo=tipo)], _cielo_cats()
+    )
+
+    assert result.resumo.conciliados == 0
+    assert result.resumo.nao_encontrados_no_sistema == 1
+    assert result.resumo.nao_encontrados_na_operadora == 1
+    assert all(not item.correspondencia_individual_comprovada for item in result.individuais)
+
+
+@pytest.mark.parametrize("bandeira", ["Elo", "Hipercard", "Marca A"])
+def test_equal_explicit_brands_keep_exact_matching(bandeira):
+    result = ReconciliationService().conciliar_cielo(
+        [_tx(bandeira=bandeira)], [_reg(tipo=bandeira)], _cielo_cats()
+    )
+
+    assert result.resumo.conciliados == 1
+    assert result.individuais[0].nivel_confianca is NivelConfiancaMatching.EXATO_COM_BANDEIRA
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_single_unbranded_system_record_cannot_choose_between_operator_brands(reverse):
+    transacoes = [_tx(bandeira="Visa", linha=1), _tx(bandeira="Mastercard", linha=2)]
+    if reverse:
+        transacoes.reverse()
+    result = ReconciliationService().conciliar_cielo(
+        transacoes, [_reg(tipo=None)], _cielo_cats()
+    )
+
+    assert result.resumo.conciliados == 0
+    assert result.resumo.ambiguidades == 3
+    assert all(
+        item.status is StatusConciliacao.CORRESPONDENCIA_AMBIGUA for item in result.individuais
+    )
+    assert all(
+        item.transacao_operadora is None or item.registro_sistema is None
+        for item in result.individuais
+    )
+    assert result.agregados[0].quantidade_conciliada == 0
 
 
 def test_matching_uses_sale_date_and_data_cadastro_not_due_dates_or_time():

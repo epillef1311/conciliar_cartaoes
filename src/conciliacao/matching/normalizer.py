@@ -1,5 +1,7 @@
 """Normalizacao conservadora para matching."""
 
+import re
+
 from conciliacao.domain.enums import Modalidade, Operadora
 from conciliacao.domain.models import RegistroSistema, TransacaoOperadora
 from conciliacao.integrations.velo.categories import CategoriaFiltroVelo
@@ -78,18 +80,48 @@ def normalizar_bandeira_sistema(registro: RegistroSistema) -> str | None:
     tipo_cartao = normalizar_bandeira_texto(registro.tipo_cartao)
     if tipo_cartao is not None:
         return tipo_cartao
-    forma = normalizar_bandeira_texto(registro.forma_recebimento)
+    forma = normalizar_bandeira_texto(registro.forma_recebimento, preservar_desconhecida=False)
     return forma
 
 
-def normalizar_bandeira_texto(value: object | None) -> str | None:
-    if value is None:
+def normalizar_bandeira_texto(
+    value: object | None, *, preservar_desconhecida: bool = True
+) -> str | None:
+    """Preserva nomes explicitos; IDs e descricoes genericas nao inferem bandeira."""
+    if not isinstance(value, str):
         return None
-    comparable = normalize_text(str(value)).comparavel
-    if "master" in comparable:
-        return "mastercard"
-    if "visa" in comparable:
-        return "visa"
-    if "pix" in comparable:
-        return "pix"
-    return None
+    comparable = normalize_text(value).comparavel
+    if not comparable or comparable.isdecimal():
+        return None
+    aliases = {
+        "mastercard": ("master", "mastercard", "master card"),
+        "visa": ("visa",),
+        "pix": ("pix",),
+        "elo": ("elo",),
+        "hipercard": ("hipercard", "hiper card"),
+        "amex": ("amex", "american express"),
+        "diners": ("diners", "diners club"),
+        "discover": ("discover",),
+        "cabal": ("cabal",),
+    }
+    matches = {
+        bandeira
+        for bandeira, nomes in aliases.items()
+        if any(re.search(rf"\b{re.escape(nome)}\b", comparable) for nome in nomes)
+    }
+    if len(matches) == 1:
+        return matches.pop()
+    if not preservar_desconhecida or comparable in {
+        "credito",
+        "debito",
+        "cartao",
+        "cartao de credito",
+        "cartao de debito",
+        "nao informado",
+        "nao informada",
+        "desconhecido",
+        "desconhecida",
+        "sem bandeira",
+    }:
+        return None
+    return comparable

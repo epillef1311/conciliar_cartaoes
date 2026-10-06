@@ -1,0 +1,30 @@
+[
+  {
+    "contaPacotePagamentoUnicoId": "QC-001",
+    "operadoraId": 44,
+    "operadora": "QuickPay",
+    "cadastroCaixaId": "CX-QC-001",
+    "formaRecebimentoId": 44,
+    "formaRecebimento": "Cartao de Credito - Quickpay",
+    "tipoCartao": "Visa",
+    "valor": "126.83",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-14",
+    "dataCadastro": "2026-07-13",
+    "campoExtra": "anonimo"
+  },
+  {
+    "contaPacotePagamentoUnicoId": "QC-002",
+    "operadoraId": 44,
+    "operadora": "QuickPay",
+    "cadastroCaixaId": "CX-QC-002",
+    "formaRecebimentoId": 44,
+    "formaRecebimento": "Cartao de Credito - Quickpay",
+    "tipoCartao": "Mastercard",
+    "valor": "194.00",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-14",
+    "dataCadastro": "2026-07-13",
+    "campoExtra": "anonimo"
+  }
+]

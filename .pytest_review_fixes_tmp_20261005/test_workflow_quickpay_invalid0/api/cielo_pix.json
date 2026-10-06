@@ -1,0 +1,16 @@
+[
+  {
+    "contaPacotePagamentoUnicoId": "CP-001",
+    "operadoraId": 91,
+    "operadora": "Cielo",
+    "cadastroCaixaId": "CX-CP-001",
+    "formaRecebimentoId": 91,
+    "formaRecebimento": "Pix - Cielo",
+    "tipoCartao": "Pix",
+    "valor": "2.90",
+    "valorTaxaCartao": "0.00",
+    "dataVencimento": "2026-07-14",
+    "dataCadastro": "2026-07-13",
+    "campoExtra": "anonimo"
+  }
+]

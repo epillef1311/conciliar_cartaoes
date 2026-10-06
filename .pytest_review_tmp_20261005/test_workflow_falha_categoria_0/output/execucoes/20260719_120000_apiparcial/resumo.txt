@@ -1,0 +1,23 @@
+CONCILIACAO FINALIZADA COM SUCESSO_PARCIAL
+
+Execucao:
+20260719_120000_apiparcial
+
+Periodo:
+13/07/2026 a 13/07/2026
+
+CIELO
+Status: SUCESSO_PARCIAL
+Transacoes: 2
+Conciliadas: 1
+Pendentes: 1
+Nao encontradas no sistema: 0
+Nao encontradas na operadora: 0
+Arquivo: C:\Users\Administrador\Documents\conciliacaoCartoes\.pytest_review_tmp_20261005\test_workflow_falha_categoria_0\planilhas\2026-10-05\cielo\CIELO_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx
+
+API
+Categorias consultadas: 1
+Categorias com erro: 1
+
+Status geral:
+SUCESSO_PARCIAL

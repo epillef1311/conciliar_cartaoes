@@ -1,0 +1,5 @@
+2026-10-05 20:22:18,410 INFO inicio execucao=20261005_202218_4bf9cd modo=SIMULADO
+2026-10-05 20:22:18,418 INFO quickpay lida transacoes=2 valido=True
+2026-10-05 20:22:18,420 INFO api categoria=QUICKPAY_CREDITO inicio=2026-07-13 fim=2026-07-13 registros=2
+2026-10-05 20:22:18,421 ERROR quickpay falha exportacao: Não foi possível concluir esta etapa. Detalhes sensíveis foram omitidos.
+2026-10-05 20:22:18,422 INFO fim execucao=20261005_202218_4bf9cd

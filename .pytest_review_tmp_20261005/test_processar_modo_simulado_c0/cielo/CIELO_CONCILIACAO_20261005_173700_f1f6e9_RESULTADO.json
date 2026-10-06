@@ -1,0 +1,242 @@
+{
+  "execution_id": "20261005_173700_f1f6e9",
+  "operadora": "CIELO",
+  "arquivo_saida": "C:\\Users\\Administrador\\Documents\\conciliacaoCartoes\\.pytest_review_tmp_20261005\\test_processar_modo_simulado_c0\\planilhas\\2026-10-05\\cielo\\CIELO_CONCILIACAO_2026-07-13_A_2026-07-13.xlsx",
+  "matching": {
+    "resumo": {
+      "operadora": "CIELO",
+      "transacoes_operadora": 2,
+      "registros_sistema": 6,
+      "conciliados": 0,
+      "nao_encontrados_no_sistema": 2,
+      "nao_encontrados_na_operadora": 6,
+      "divergencias_quantidade": 0,
+      "divergencias_valor": 0,
+      "ambiguidades": 0,
+      "pendencias_dados": 0,
+      "total_bruto_operadora": "129.73",
+      "total_sistema": "455.34",
+      "total_conciliado": "0.00",
+      "diferenca_total": "-325.61",
+      "categorias_consultadas": [
+        "CIELO_PIX",
+        "CIELO_CREDITO"
+      ],
+      "categorias_ausentes": [
+        "CIELO_DEBITO"
+      ]
+    },
+    "agregados": [
+      {
+        "chave_grupo": "CIELO|CREDITO|2026-07-13|126.83|visa",
+        "quantidade_operadora": 1,
+        "quantidade_sistema": 0,
+        "quantidade_conciliada": 0,
+        "excedente_operadora": 1,
+        "excedente_sistema": 0,
+        "total_operadora": "126.83",
+        "total_sistema": "0.00",
+        "diferenca_total": "126.83",
+        "status": "NAO_ENCONTRADO_NO_SISTEMA",
+        "nivel_especificidade": "NAO_CORRESPONDIDO",
+        "alertas": []
+      },
+      {
+        "chave_grupo": "CIELO|CREDITO|2026-07-14|126.83|visa",
+        "quantidade_operadora": 0,
+        "quantidade_sistema": 1,
+        "quantidade_conciliada": 0,
+        "excedente_operadora": 0,
+        "excedente_sistema": 1,
+        "total_operadora": "0.00",
+        "total_sistema": "126.83",
+        "diferenca_total": "-126.83",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "nivel_especificidade": "NAO_CORRESPONDIDO",
+        "alertas": []
+      },
+      {
+        "chave_grupo": "CIELO|CREDITO|2026-07-14|194.00|mastercard",
+        "quantidade_operadora": 0,
+        "quantidade_sistema": 1,
+        "quantidade_conciliada": 0,
+        "excedente_operadora": 0,
+        "excedente_sistema": 1,
+        "total_operadora": "0.00",
+        "total_sistema": "194.00",
+        "diferenca_total": "-194.00",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "nivel_especificidade": "NAO_CORRESPONDIDO",
+        "alertas": []
+      },
+      {
+        "chave_grupo": "CIELO|CREDITO|2026-07-15|126.83|visa",
+        "quantidade_operadora": 0,
+        "quantidade_sistema": 1,
+        "quantidade_conciliada": 0,
+        "excedente_operadora": 0,
+        "excedente_sistema": 1,
+        "total_operadora": "0.00",
+        "total_sistema": "126.83",
+        "diferenca_total": "-126.83",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "nivel_especificidade": "NAO_CORRESPONDIDO",
+        "alertas": []
+      },
+      {
+        "chave_grupo": "CIELO|PIX|2026-07-13|2.90|pix",
+        "quantidade_operadora": 1,
+        "quantidade_sistema": 0,
+        "quantidade_conciliada": 0,
+        "excedente_operadora": 1,
+        "excedente_sistema": 0,
+        "total_operadora": "2.90",
+        "total_sistema": "0.00",
+        "diferenca_total": "2.90",
+        "status": "NAO_ENCONTRADO_NO_SISTEMA",
+        "nivel_especificidade": "NAO_CORRESPONDIDO",
+        "alertas": []
+      },
+      {
+        "chave_grupo": "CIELO|PIX|2026-07-14|2.39|pix",
+        "quantidade_operadora": 0,
+        "quantidade_sistema": 1,
+        "quantidade_conciliada": 0,
+        "excedente_operadora": 0,
+        "excedente_sistema": 1,
+        "total_operadora": "0.00",
+        "total_sistema": "2.39",
+        "diferenca_total": "-2.39",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "nivel_especificidade": "NAO_CORRESPONDIDO",
+        "alertas": []
+      },
+      {
+        "chave_grupo": "CIELO|PIX|2026-07-14|2.90|pix",
+        "quantidade_operadora": 0,
+        "quantidade_sistema": 1,
+        "quantidade_conciliada": 0,
+        "excedente_operadora": 0,
+        "excedente_sistema": 1,
+        "total_operadora": "0.00",
+        "total_sistema": "2.90",
+        "diferenca_total": "-2.90",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "nivel_especificidade": "NAO_CORRESPONDIDO",
+        "alertas": []
+      },
+      {
+        "chave_grupo": "CIELO|PIX|2026-07-15|2.39|pix",
+        "quantidade_operadora": 0,
+        "quantidade_sistema": 1,
+        "quantidade_conciliada": 0,
+        "excedente_operadora": 0,
+        "excedente_sistema": 1,
+        "total_operadora": "0.00",
+        "total_sistema": "2.39",
+        "diferenca_total": "-2.39",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "nivel_especificidade": "NAO_CORRESPONDIDO",
+        "alertas": []
+      }
+    ],
+    "individuais": [
+      {
+        "linha_operadora": 4,
+        "id_sistema": null,
+        "status": "NAO_ENCONTRADO_NO_SISTEMA",
+        "valor_operadora": "126.83",
+        "valor_sistema": null,
+        "diferenca": null,
+        "chave_utilizada": "CIELO|CREDITO|2026-07-13|126.83|visa",
+        "nivel_confianca": "NAO_CORRESPONDIDO",
+        "correspondencia_individual_comprovada": false,
+        "correspondencia_atribuida_deterministicamente": false
+      },
+      {
+        "linha_operadora": 5,
+        "id_sistema": null,
+        "status": "NAO_ENCONTRADO_NO_SISTEMA",
+        "valor_operadora": "2.90",
+        "valor_sistema": null,
+        "diferenca": null,
+        "chave_utilizada": "CIELO|PIX|2026-07-13|2.90|pix",
+        "nivel_confianca": "NAO_CORRESPONDIDO",
+        "correspondencia_individual_comprovada": false,
+        "correspondencia_atribuida_deterministicamente": false
+      },
+      {
+        "linha_operadora": null,
+        "id_sistema": "CC-001",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "valor_operadora": null,
+        "valor_sistema": "126.83",
+        "diferenca": null,
+        "chave_utilizada": "CIELO|CREDITO|2026-07-14|126.83|visa",
+        "nivel_confianca": "NAO_CORRESPONDIDO",
+        "correspondencia_individual_comprovada": false,
+        "correspondencia_atribuida_deterministicamente": false
+      },
+      {
+        "linha_operadora": null,
+        "id_sistema": "CC-002",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "valor_operadora": null,
+        "valor_sistema": "194.00",
+        "diferenca": null,
+        "chave_utilizada": "CIELO|CREDITO|2026-07-14|194.00|mastercard",
+        "nivel_confianca": "NAO_CORRESPONDIDO",
+        "correspondencia_individual_comprovada": false,
+        "correspondencia_atribuida_deterministicamente": false
+      },
+      {
+        "linha_operadora": null,
+        "id_sistema": "CP-001",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "valor_operadora": null,
+        "valor_sistema": "2.90",
+        "diferenca": null,
+        "chave_utilizada": "CIELO|PIX|2026-07-14|2.90|pix",
+        "nivel_confianca": "NAO_CORRESPONDIDO",
+        "correspondencia_individual_comprovada": false,
+        "correspondencia_atribuida_deterministicamente": false
+      },
+      {
+        "linha_operadora": null,
+        "id_sistema": "CP-002",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "valor_operadora": null,
+        "valor_sistema": "2.39",
+        "diferenca": null,
+        "chave_utilizada": "CIELO|PIX|2026-07-14|2.39|pix",
+        "nivel_confianca": "NAO_CORRESPONDIDO",
+        "correspondencia_individual_comprovada": false,
+        "correspondencia_atribuida_deterministicamente": false
+      },
+      {
+        "linha_operadora": null,
+        "id_sistema": "CC-003",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "valor_operadora": null,
+        "valor_sistema": "126.83",
+        "diferenca": null,
+        "chave_utilizada": "CIELO|CREDITO|2026-07-15|126.83|visa",
+        "nivel_confianca": "NAO_CORRESPONDIDO",
+        "correspondencia_individual_comprovada": false,
+        "correspondencia_atribuida_deterministicamente": false
+      },
+      {
+        "linha_operadora": null,
+        "id_sistema": "CP-003",
+        "status": "NAO_ENCONTRADO_NA_OPERADORA",
+        "valor_operadora": null,
+        "valor_sistema": "2.39",
+        "diferenca": null,
+        "chave_utilizada": "CIELO|PIX|2026-07-15|2.39|pix",
+        "nivel_confianca": "NAO_CORRESPONDIDO",
+        "correspondencia_individual_comprovada": false,
+        "correspondencia_atribuida_deterministicamente": false
+      }
+    ]
+  }
+}

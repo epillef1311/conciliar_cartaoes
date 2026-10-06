@@ -638,7 +638,7 @@ def _grupo_ambiguo_por_bandeira(
 ) -> bool:
     op_brands = {item.key.bandeira for item in operadores if item.key.bandeira}
     sys_brands = {item.key.bandeira for item in sistemas if item.key.bandeira}
-    return bool(op_brands) and not sys_brands and len(op_brands) > 1 and len(sistemas) > 1
+    return not sys_brands and len(op_brands) > 1 and bool(sistemas)
 
 
 def _bandeiras_compativeis(left: str | None, right: str | None) -> bool:
